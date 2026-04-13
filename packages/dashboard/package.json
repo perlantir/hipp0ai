@@ -1,0 +1,41 @@
+{
+  "name": "@hipp0/dashboard",
+  "version": "0.1.0",
+  "description": "React web dashboard for Hipp0",
+  "author": "Perlantir",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/perlantir/hipp0"
+  },
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && npx vite build",
+    "preview": "vite preview",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "d3": "^7.9.0",
+    "d3-force": "^3.0.0",
+    "lucide-react": "^0.460.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/d3": "^7.4.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.0",
+    "jsdom": "^29.0.1",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^4.1.2"
+  }
+}

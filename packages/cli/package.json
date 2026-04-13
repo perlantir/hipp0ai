@@ -1,0 +1,36 @@
+{
+  "name": "@hipp0/cli",
+  "version": "0.1.3",
+  "description": "Command-line interface for Hipp0",
+  "author": "Perlantir",
+  "repository": {"type": "git", "url": "https://github.com/perlantir/hipp0"},
+  "type": "module",
+  "bin": {
+    "hipp0": "./dist/hipp0-cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/hipp0-cli.ts",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@hipp0/core": "workspace:*",
+    "@hipp0/sdk": "workspace:*",
+    "@hipp0/server": "workspace:*",
+    "better-sqlite3": "^12.8.0",
+    "commander": "^12.1.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0"
+  }
+}

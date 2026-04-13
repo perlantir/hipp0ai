@@ -1,0 +1,24 @@
+{
+  "_comment": "Tunable scoring parameters for the benchmark scorer. Edit and re-run without code changes.",
+  "cross_reference_boost": 0.12,
+  "domain_mismatch_penalty": 0.0,
+  "recency_boost_7d": 0.05,
+  "recency_boost_30d": 0.02,
+  "minimum_score_threshold": 0.15,
+  "own_wing_boost": 0.20,
+  "domain_match_boost": 0.05,
+  "role_semantic_cap": 0.12,
+  "signal_weights": {
+    "tag_overlap": 0.30,
+    "role_match": 0.10,
+    "domain_relevance": 0.15,
+    "confidence": 0.10,
+    "description_overlap": 0.35
+  },
+  "semantic_adaptive_threshold": 0.01,
+  "semantic_boosted_weight": 0.40,
+  "semantic_rescue_desc_threshold": 0.35,
+  "semantic_rescue_floor": 0.20,
+  "cross_decision_tag_threshold": 2,
+  "cross_decision_boost": 0.05
+}

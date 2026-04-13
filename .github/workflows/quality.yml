@@ -1,0 +1,31 @@
+name: Code Quality
+on: [push, pull_request]
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g pnpm && pnpm install
+      - name: TypeScript strict check
+        run: |
+          pnpm --filter @hipp0/core tsc --noEmit
+          pnpm --filter @hipp0/server tsc --noEmit
+      - name: No console.log in server/core
+        run: |
+          COUNT=$(grep -rn "console\.log" --include="*.ts" packages/server/src/ packages/core/src/ | wc -l)
+          if [ "$COUNT" -gt 0 ]; then echo "❌ $COUNT console.log calls"; grep -rn "console\.log" --include="*.ts" packages/server/src/ packages/core/src/ | head -10; exit 1; fi
+          echo "✅ No console.log"
+      - name: No any types
+        run: |
+          COUNT=$(grep -rn ": any" --include="*.ts" packages/*/src/ | grep -v node_modules | grep -v "\.d\.ts" | wc -l)
+          if [ "$COUNT" -gt 0 ]; then echo "❌ $COUNT any types"; grep -rn ": any" --include="*.ts" packages/*/src/ | grep -v node_modules | grep -v "\.d\.ts"; exit 1; fi
+          echo "✅ No any types"
+      - name: No eval
+        run: |
+          if grep -rn "eval(" --include="*.ts" packages/*/src/ | grep -v node_modules; then echo "❌ eval() found"; exit 1; fi
+          echo "✅ No eval"
+      - run: pnpm test
+      - run: pnpm build

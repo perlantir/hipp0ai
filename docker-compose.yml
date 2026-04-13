@@ -1,0 +1,101 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: hipp0-db
+    environment:
+      POSTGRES_USER: hipp0
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: hipp0
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - nexus_nexus_pgdata:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hipp0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hipp0-server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://hipp0:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/hipp0}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      PORT: 3100
+      HOST: 0.0.0.0
+      NODE_ENV: ${NODE_ENV:-development}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      HIPP0_EMBEDDINGS_URL: ${HIPP0_EMBEDDINGS_URL:-}
+      HIPP0_EMBEDDINGS_KEY: ${HIPP0_EMBEDDINGS_KEY:-}
+      HIPP0_EMBEDDINGS_MODEL: ${HIPP0_EMBEDDINGS_MODEL:-}
+      HIPP0_LLM_URL: ${HIPP0_LLM_URL:-}
+      HIPP0_LLM_KEY: ${HIPP0_LLM_KEY:-}
+      HIPP0_LLM_MODEL: ${HIPP0_LLM_MODEL:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-}
+      DISTILLERY_PROVIDER: ${DISTILLERY_PROVIDER:-}
+      HIPP0_CORS_ORIGINS: ${HIPP0_CORS_ORIGINS:-}
+      HIPP0_AUTH_REQUIRED: ${HIPP0_AUTH_REQUIRED:-true}
+      HIPP0_API_KEY: ${HIPP0_API_KEY:-}
+      HIPP0_PLAYGROUND_ENABLED: ${HIPP0_PLAYGROUND_ENABLED:-false}
+      HIPP0_SCHEDULER_ENABLED: ${HIPP0_SCHEDULER_ENABLED:-false}
+      HIPP0_TELEMETRY_ENABLED: ${HIPP0_TELEMETRY_ENABLED:-false}
+      HIPP0_OTLP_ENDPOINT: ${HIPP0_OTLP_ENDPOINT:-}
+      HIPP0_SMTP_HOST: ${HIPP0_SMTP_HOST:-}
+      HIPP0_SMTP_PORT: ${HIPP0_SMTP_PORT:-587}
+      HIPP0_SMTP_USER: ${HIPP0_SMTP_USER:-}
+      HIPP0_SMTP_PASS: ${HIPP0_SMTP_PASS:-}
+      HIPP0_SMTP_FROM: ${HIPP0_SMTP_FROM:-noreply@hipp0.ai}
+      # OpenClaw one-shot import — the endpoint at
+      # POST /api/projects/:id/openclaw/import reads from this path.
+      # Inside the container this always resolves to /openclaw; the host
+      # side is controlled by HIPP0_OPENCLAW_HOST_PATH in .env below.
+      HIPP0_OPENCLAW_PATH: /openclaw
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./supabase/migrations:/app/supabase/migrations:ro
+      # OpenClaw data mount — read-only. If HIPP0_OPENCLAW_HOST_PATH is
+      # unset, this mounts /tmp as a no-op (the import endpoint will
+      # simply find no workspace-* subdirs and return safely). To enable
+      # import from your real OpenClaw install, set HIPP0_OPENCLAW_HOST_PATH
+      # in .env to the host-side path containing your workspace-* dirs,
+      # e.g. /docker/openclaw-okny/data/.openclaw
+      - ${HIPP0_OPENCLAW_HOST_PATH:-/tmp}:/openclaw:ro
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3100/api/health',r=>{process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+      args:
+        VITE_API_URL: ""
+        CACHE_BUSTER: ${CACHE_BUSTER:-1}
+    container_name: hipp0-dashboard
+    depends_on:
+      server:
+        condition: service_healthy
+    ports:
+      - "3200:80"
+    restart: unless-stopped
+
+volumes:
+  nexus_nexus_pgdata:
+    driver: local

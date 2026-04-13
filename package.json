@@ -1,0 +1,46 @@
+{
+  "name": "hipp0",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Multi-Agent Project Intelligence Layer — shared brain for AI agent teams",
+  "author": "Perlantir",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/perlantir/hipp0"
+  },
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "test": "turbo test",
+    "lint": "turbo lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\"",
+    "clean": "turbo clean && rm -rf node_modules",
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "tsx scripts/seed-demo.ts",
+    "validate": "tsx scripts/phase-a-validation.ts",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:build": "docker compose build",
+    "prepublish:cli": "pnpm build && cp -r packages/dashboard/dist packages/cli/dashboard",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.10.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.4.0",
+    "tsx": "^4.19.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.58.0",
+    "vitest": "^2.1.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

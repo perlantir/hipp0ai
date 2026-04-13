@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: hipp0
+          POSTGRES_PASSWORD: hipp0_test
+          POSTGRES_DB: hipp0_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U hipp0"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    strategy:
+      matrix:
+        node-version: [22]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm format:check
+
+      - name: Type check
+        run: pnpm -r exec tsc --noEmit
+
+      - name: Run unit tests
+        run: pnpm test
+
+      - name: Run integration validation
+        env:
+          DATABASE_URL: postgresql://hipp0:hipp0_test@localhost:5432/hipp0_test
+        run: |
+          # Apply migrations
+          for f in supabase/migrations/*.sql; do
+            PGPASSWORD=hipp0_test psql -h localhost -U hipp0 -d hipp0_test -f "$f"
+          done
+          # Run validation
+          npx tsx scripts/phase-a-validation.ts
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build server image
+        run: docker build -t hipp0-server .
+
+      - name: Build dashboard image
+        run: docker build -f Dockerfile.dashboard -t hipp0-dashboard .
+
+      - name: Test Docker Compose
+        run: |
+          docker compose up -d postgres
+          sleep 10
+          docker compose ps
+          docker compose down
+
+  benchmarks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Run benchmark suite
+        run: npx tsx benchmarks/runner.ts --suite all
+
+  python-sdk:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Python SDK
+        run: |
+          cd python-sdk
+          pip install -e .
+
+      - name: Verify imports
+        run: |
+          python -c "from hipp0_sdk import Hipp0Client; print('SDK imports OK')"
+          python -c "from hipp0_sdk.types import Decision, Agent, Project; print('Types OK')"
+
+      - name: Install integrations
+        run: |
+          pip install langchain-core crewai 2>/dev/null || true
+          cd integrations/langchain && pip install -e . 2>/dev/null && cd ../..
+          cd integrations/crewai && pip install -e . 2>/dev/null && cd ../..

@@ -1,0 +1,59 @@
+{
+  "name": "@hipp0/server",
+  "version": "0.1.1",
+  "description": "Hono REST API server for Hipp0",
+  "author": "Perlantir",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/perlantir/hipp0"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.0",
+    "@hipp0/core": "workspace:*",
+    "@hono/node-server": "^1.13.0",
+    "@octokit/auth-app": "^8.2.0",
+    "@octokit/rest": "^22.0.1",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.46.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.50.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.50.0",
+    "@opentelemetry/sdk-node": "^0.50.0",
+    "@slack/events-api": "^3.0.1",
+    "@slack/web-api": "^7.15.0",
+    "@supabase/supabase-js": "^2.49.0",
+    "bullmq": "^5.73.0",
+    "discord.js": "^14.26.2",
+    "hono": "^4.6.0",
+    "ioredis": "^5.10.1",
+    "node-telegram-bot-api": "^0.67.0",
+    "stripe": "^17.4.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node-telegram-bot-api": "^0.64.14",
+    "@types/ws": "^8.5.12",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}

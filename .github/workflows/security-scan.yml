@@ -1,0 +1,21 @@
+name: Security Scan
+on: [push, pull_request]
+jobs:
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for hardcoded secrets
+        run: |
+          FOUND=0
+          if grep -rn "sk-[a-zA-Z0-9]\{20,\}" --include="*.ts" --include="*.js" --include="*.py" --include="*.json" . | grep -v node_modules | grep -v pnpm-lock | grep -v ".env.example"; then
+            echo "❌ Hardcoded API key found"; FOUND=1
+          fi
+          if grep -rn "agp_[a-zA-Z0-9]" --include="*.ts" --include="*.js" --include="*.json" . | grep -v node_modules; then
+            echo "❌ Perplexity token found"; FOUND=1
+          fi
+          if grep -rn "password.*=.*['\"][^$]" --include="*.ts" --include="*.js" . | grep -v node_modules | grep -v ".env.example" | grep -v "test"; then
+            echo "❌ Hardcoded password found"; FOUND=1
+          fi
+          if [ $FOUND -eq 1 ]; then echo "::error::Secrets detected in source code"; exit 1; fi
+          echo "✅ No secrets found"

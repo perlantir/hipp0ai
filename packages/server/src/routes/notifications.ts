@@ -1,0 +1,146 @@
+import type { Hono } from 'hono';
+import { getDb } from '@hipp0/core/db/index.js';
+import { parseNotification, parseSubscription } from '@hipp0/core/db/parsers.js';
+import { NotFoundError } from '@hipp0/core/types.js';
+import { requireUUID, requireString, optionalString, mapDbError } from './validation.js';
+
+export function registerNotificationRoutes(app: Hono): void {
+  // Project-level notifications (all agents in project)
+  app.get('/api/projects/:id/notifications', async (c) => {
+    const db = getDb();
+    const projectId = requireUUID(c.req.param('id'), 'projectId');
+
+    const result = await db.query(
+      `SELECT n.* FROM notifications n
+       JOIN agents a ON n.agent_id = a.id
+       WHERE a.project_id = ?
+       ORDER BY n.created_at DESC
+       LIMIT 50`,
+      [projectId],
+    );
+
+    return c.json(result.rows.map((r) => {
+      const n = parseNotification(r as Record<string, unknown>);
+      return {
+        id: n.id,
+        type: mapNotificationType(n.notification_type),
+        urgency: n.urgency,
+        message: n.message,
+        role_context: n.role_context,
+        read: !!n.read_at,
+        created_at: n.created_at,
+        decision_id: n.decision_id,
+      };
+    }));
+  });
+
+  // Mark notification as read (project-level path)
+  app.patch('/api/projects/:pid/notifications/:id', async (c) => {
+    const db = getDb();
+    const projectId = requireUUID(c.req.param('pid'), 'projectId');
+    const id = requireUUID(c.req.param('id'), 'id');
+
+    const result = await db.query(
+      `UPDATE notifications SET read_at = ${db.dialect === 'sqlite' ? "datetime('now')" : 'NOW()'}
+       WHERE id = ? AND agent_id IN (SELECT a.id FROM agents a WHERE a.project_id = ?) RETURNING *`,
+      [id, projectId],
+    );
+    if (result.rows.length === 0) throw new NotFoundError('Notification', id);
+    return c.json(parseNotification(result.rows[0] as Record<string, unknown>));
+  });
+
+  // Agent-level notifications
+  app.get('/api/agents/:id/notifications', async (c) => {
+    const db = getDb();
+    const agentId = requireUUID(c.req.param('id'), 'agentId');
+    const unreadOnly = c.req.query('unread');
+
+    let sql = 'SELECT * FROM notifications WHERE agent_id = ?';
+    if (unreadOnly === 'true') sql += ' AND read_at IS NULL';
+    sql += ' ORDER BY created_at DESC LIMIT 100';
+
+    const result = await db.query(sql, [agentId]);
+    return c.json(result.rows.map((r) => parseNotification(r as Record<string, unknown>)));
+  });
+
+  app.patch('/api/notifications/:id/read', async (c) => {
+    const db = getDb();
+    const id = requireUUID(c.req.param('id'), 'id');
+    const projectId = c.req.query('project_id');
+
+    let sql = 'UPDATE notifications SET read_at = NOW() WHERE id = ?';
+    const params: unknown[] = [id];
+    if (projectId) {
+      sql += ' AND agent_id IN (SELECT a.id FROM agents a WHERE a.project_id = ?)';
+      params.push(projectId);
+    }
+    sql += ' RETURNING *';
+
+    const result = await db.query(sql, params);
+    if (result.rows.length === 0) throw new NotFoundError('Notification', id);
+    return c.json(parseNotification(result.rows[0] as Record<string, unknown>));
+  });
+
+  app.post('/api/agents/:id/subscriptions', async (c) => {
+    const db = getDb();
+    const agentId = requireUUID(c.req.param('id'), 'agentId');
+    const body = await c.req.json<{
+      topic?: unknown;
+      notify_on?: string[];
+      priority?: unknown;
+    }>();
+
+    const topic = requireString(body.topic, 'topic', 200);
+
+    try {
+      const result = await db.query(
+        `INSERT INTO subscriptions (agent_id, topic, notify_on, priority)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT (agent_id, topic) DO UPDATE
+           SET notify_on = EXCLUDED.notify_on, priority = EXCLUDED.priority
+         RETURNING *`,
+        [
+          agentId,
+          topic,
+          db.arrayParam(body.notify_on ?? ['update', 'supersede', 'revert']),
+          optionalString(body.priority, 'priority', 50) ?? 'medium',
+        ],
+      );
+      return c.json(parseSubscription(result.rows[0] as Record<string, unknown>), 201);
+    } catch (err) {
+      mapDbError(err);
+    }
+  });
+
+  app.get('/api/agents/:id/subscriptions', async (c) => {
+    const db = getDb();
+    const agentId = requireUUID(c.req.param('id'), 'agentId');
+    const result = await db.query(
+      'SELECT * FROM subscriptions WHERE agent_id = ? ORDER BY created_at ASC',
+      [agentId],
+    );
+    return c.json(result.rows.map((r) => parseSubscription(r as Record<string, unknown>)));
+  });
+
+  app.delete('/api/subscriptions/:id', async (c) => {
+    const db = getDb();
+    const id = requireUUID(c.req.param('id'), 'id');
+    const result = await db.query('DELETE FROM subscriptions WHERE id = ? RETURNING id', [id]);
+    if (result.rows.length === 0) throw new NotFoundError('Subscription', id);
+    return c.json({ deleted: true, id });
+  });
+}
+
+function mapNotificationType(t: string): string {
+  const map: Record<string, string> = {
+    decision_created: 'new_decision',
+    decision_updated: 'status_change',
+    decision_superseded: 'supersession',
+    contradiction_detected: 'contradiction',
+    session_completed: 'session_complete',
+    dependency_changed: 'dependency_changed',
+    decision_validated: 'validation',
+    decision_invalidated: 'invalidation',
+  };
+  return map[t] ?? t;
+}

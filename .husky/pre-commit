@@ -1,0 +1,37 @@
+#!/bin/sh
+
+FOUND=0
+
+# Exclude CI/hook config files that legitimately reference these patterns
+EXCLUDE_PATTERN="node_modules\|pnpm-lock\|\.github/workflows\|\.husky/"
+
+# Check for hardcoded API keys
+if git diff --cached --diff-filter=ACMR -z --name-only | xargs -0 grep -l "sk-[a-zA-Z0-9]\{20,\}" 2>/dev/null | grep -v "$EXCLUDE_PATTERN" | grep -v ".env.example"; then
+  echo "FAIL: Commit blocked: hardcoded API key (sk-) detected"
+  FOUND=1
+fi
+
+# Check for Perplexity tokens
+if git diff --cached --diff-filter=ACMR -z --name-only | xargs -0 grep -l "agp_[a-zA-Z0-9]" 2>/dev/null | grep -v "$EXCLUDE_PATTERN"; then
+  echo "FAIL: Commit blocked: Perplexity token (agp_) detected"
+  FOUND=1
+fi
+
+# Check for old brand name
+if git diff --cached --diff-filter=ACMR -z --name-only | xargs -0 grep -li "DeciGraph\|decigraph" 2>/dev/null | grep -v "$EXCLUDE_PATTERN" | grep -v CHANGELOG; then
+  echo "FAIL: Commit blocked: DeciGraph reference detected"
+  FOUND=1
+fi
+
+# Check for em-dash dividers
+if git diff --cached --diff-filter=ACMR -z --name-only | xargs -0 grep -l "──" 2>/dev/null | grep -v "$EXCLUDE_PATTERN"; then
+  echo "FAIL: Commit blocked: em-dash divider detected"
+  FOUND=1
+fi
+
+if [ $FOUND -eq 1 ]; then
+  echo "::error::Pre-commit checks failed. Fix the issues above before committing."
+  exit 1
+fi
+
+echo "OK: Pre-commit checks passed"

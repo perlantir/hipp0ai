@@ -1,0 +1,300 @@
+{
+  "name": "@hipp0/core",
+  "version": "0.1.1",
+  "description": "Core engine: decision graph, context compiler, change propagator, distillery",
+  "author": "Perlantir",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/perlantir/hipp0"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./db/index.js": {
+      "import": "./dist/db/index.js",
+      "types": "./dist/db/index.d.ts"
+    },
+    "./db/pool.js": {
+      "import": "./dist/db/pool.js",
+      "types": "./dist/db/pool.d.ts"
+    },
+    "./db/parsers.js": {
+      "import": "./dist/db/parsers.js",
+      "types": "./dist/db/parsers.d.ts"
+    },
+    "./types.js": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./types/hermes-contract.js": {
+      "import": "./dist/types/hermes-contract.js",
+      "types": "./dist/types/hermes-contract.d.ts"
+    },
+    "./roles.js": {
+      "import": "./dist/roles.js",
+      "types": "./dist/roles.d.ts"
+    },
+    "./config/llm.js": {
+      "import": "./dist/config/llm.js",
+      "types": "./dist/config/llm.d.ts"
+    },
+    "./distillery/index.js": {
+      "import": "./dist/distillery/index.js",
+      "types": "./dist/distillery/index.d.ts"
+    },
+    "./distillery/extractor.js": {
+      "import": "./dist/distillery/extractor.js",
+      "types": "./dist/distillery/extractor.d.ts"
+    },
+    "./decision-graph/embeddings.js": {
+      "import": "./dist/decision-graph/embeddings.js",
+      "types": "./dist/decision-graph/embeddings.d.ts"
+    },
+    "./decision-graph/local-embeddings.js": {
+      "import": "./dist/decision-graph/local-embeddings.js",
+      "types": "./dist/decision-graph/local-embeddings.d.ts"
+    },
+    "./change-propagator/index.js": {
+      "import": "./dist/change-propagator/index.js",
+      "types": "./dist/change-propagator/index.d.ts"
+    },
+    "./contradiction-detector/index.js": {
+      "import": "./dist/contradiction-detector/index.js",
+      "types": "./dist/contradiction-detector/index.d.ts"
+    },
+    "./webhooks/index.js": {
+      "import": "./dist/webhooks/index.js",
+      "types": "./dist/webhooks/index.d.ts"
+    },
+    "./relevance-learner/index.js": {
+      "import": "./dist/relevance-learner/index.js",
+      "types": "./dist/relevance-learner/index.d.ts"
+    },
+    "./dependency-cascade/index.js": {
+      "import": "./dist/dependency-cascade/index.js",
+      "types": "./dist/dependency-cascade/index.d.ts"
+    },
+    "./context-compiler/index.js": {
+      "import": "./dist/context-compiler/index.js",
+      "types": "./dist/context-compiler/index.d.ts"
+    },
+    "./config/agentPersonas.js": {
+      "import": "./dist/config/agentPersonas.js",
+      "types": "./dist/config/agentPersonas.d.ts"
+    },
+    "./intelligence/contradiction-detector.js": {
+      "import": "./dist/intelligence/contradiction-detector.js",
+      "types": "./dist/intelligence/contradiction-detector.d.ts"
+    },
+    "./intelligence/dedup-detector.js": {
+      "import": "./dist/intelligence/dedup-detector.js",
+      "types": "./dist/intelligence/dedup-detector.d.ts"
+    },
+    "./intelligence/staleness-tracker.js": {
+      "import": "./dist/intelligence/staleness-tracker.js",
+      "types": "./dist/intelligence/staleness-tracker.d.ts"
+    },
+    "./intelligence/impact-analyzer.js": {
+      "import": "./dist/intelligence/impact-analyzer.js",
+      "types": "./dist/intelligence/impact-analyzer.d.ts"
+    },
+    "./intelligence/weekly-digest.js": {
+      "import": "./dist/intelligence/weekly-digest.js",
+      "types": "./dist/intelligence/weekly-digest.d.ts"
+    },
+    "./intelligence/outcome-memory.js": {
+      "import": "./dist/intelligence/outcome-memory.js",
+      "types": "./dist/intelligence/outcome-memory.d.ts"
+    },
+    "./intelligence/trust-scorer.js": {
+      "import": "./dist/intelligence/trust-scorer.js",
+      "types": "./dist/intelligence/trust-scorer.d.ts"
+    },
+    "./intelligence/capture-dedup.js": {
+      "import": "./dist/intelligence/capture-dedup.js",
+      "types": "./dist/intelligence/capture-dedup.d.ts"
+    },
+    "./intelligence/cross-agent-learner.js": {
+      "import": "./dist/intelligence/cross-agent-learner.js",
+      "types": "./dist/intelligence/cross-agent-learner.d.ts"
+    },
+    "./intelligence/pattern-extractor.js": {
+      "import": "./dist/intelligence/pattern-extractor.js",
+      "types": "./dist/intelligence/pattern-extractor.d.ts"
+    },
+    "./intelligence/decision-evolver.js": {
+      "import": "./dist/intelligence/decision-evolver.js",
+      "types": "./dist/intelligence/decision-evolver.d.ts"
+    },
+    "./config/prompts/evolution.js": {
+      "import": "./dist/config/prompts/evolution.js",
+      "types": "./dist/config/prompts/evolution.d.ts"
+    },
+    "./intelligence/whatif-simulator.js": {
+      "import": "./dist/intelligence/whatif-simulator.js",
+      "types": "./dist/intelligence/whatif-simulator.d.ts"
+    },
+    "./memory/session-manager.js": {
+      "import": "./dist/memory/session-manager.js",
+      "types": "./dist/memory/session-manager.d.ts"
+    },
+    "./intelligence/role-signals.js": {
+      "import": "./dist/intelligence/role-signals.js",
+      "types": "./dist/intelligence/role-signals.d.ts"
+    },
+    "./intelligence/orchestrator.js": {
+      "import": "./dist/intelligence/orchestrator.js",
+      "types": "./dist/intelligence/orchestrator.d.ts"
+    },
+    "./context-compiler/compression.js": {
+      "import": "./dist/context-compiler/compression.js",
+      "types": "./dist/context-compiler/compression.d.ts"
+    },
+    "./compression/h0c-encoder.js": {
+      "import": "./dist/compression/h0c-encoder.js",
+      "types": "./dist/compression/h0c-encoder.d.ts"
+    },
+    "./compression/h0c-decoder.js": {
+      "import": "./dist/compression/h0c-decoder.js",
+      "types": "./dist/compression/h0c-decoder.d.ts"
+    },
+    "./hierarchy/classifier.js": {
+      "import": "./dist/hierarchy/classifier.js",
+      "types": "./dist/hierarchy/classifier.d.ts"
+    },
+    "./wings/affinity.js": {
+      "import": "./dist/wings/affinity.js",
+      "types": "./dist/wings/affinity.d.ts"
+    },
+    "./governance/execution-governor.js": {
+      "import": "./dist/governance/execution-governor.js",
+      "types": "./dist/governance/execution-governor.d.ts"
+    },
+    "./intelligence/contrastive-explainer.js": {
+      "import": "./dist/intelligence/contrastive-explainer.js",
+      "types": "./dist/intelligence/contrastive-explainer.d.ts"
+    },
+    "./intelligence/skill-profiler.js": {
+      "import": "./dist/intelligence/skill-profiler.js",
+      "types": "./dist/intelligence/skill-profiler.d.ts"
+    },
+    "./intelligence/ab-testing.js": {
+      "import": "./dist/intelligence/ab-testing.js",
+      "types": "./dist/intelligence/ab-testing.d.ts"
+    },
+    "./intelligence/impact-predictor.js": {
+      "import": "./dist/intelligence/impact-predictor.js",
+      "types": "./dist/intelligence/impact-predictor.d.ts"
+    },
+    "./intelligence/knowledge-pipeline.js": {
+      "import": "./dist/intelligence/knowledge-pipeline.js",
+      "types": "./dist/intelligence/knowledge-pipeline.d.ts"
+    },
+    "./intelligence/knowledge-branches.js": {
+      "import": "./dist/intelligence/knowledge-branches.js",
+      "types": "./dist/intelligence/knowledge-branches.d.ts"
+    },
+    "./intelligence/reflection-engine.js": {
+      "import": "./dist/intelligence/reflection-engine.js",
+      "types": "./dist/intelligence/reflection-engine.d.ts"
+    },
+    "./intelligence/trace-collector.js": {
+      "import": "./dist/intelligence/trace-collector.js",
+      "types": "./dist/intelligence/trace-collector.d.ts"
+    },
+    "./intelligence/cross-project-patterns.js": {
+      "import": "./dist/intelligence/cross-project-patterns.js",
+      "types": "./dist/intelligence/cross-project-patterns.d.ts"
+    },
+    "./intelligence/memory-analytics.js": {
+      "import": "./dist/intelligence/memory-analytics.js",
+      "types": "./dist/intelligence/memory-analytics.d.ts"
+    },
+    "./intelligence/agent-keys.js": {
+      "import": "./dist/intelligence/agent-keys.js",
+      "types": "./dist/intelligence/agent-keys.d.ts"
+    },
+    "./intelligence/llm-explainer.js": {
+      "import": "./dist/intelligence/llm-explainer.js",
+      "types": "./dist/intelligence/llm-explainer.d.ts"
+    },
+    "./intelligence/resilience.js": {
+      "import": "./dist/intelligence/resilience.js",
+      "types": "./dist/intelligence/resilience.d.ts"
+    },
+    "./intelligence/decision-feedback.js": {
+      "import": "./dist/intelligence/decision-feedback.js",
+      "types": "./dist/intelligence/decision-feedback.d.ts"
+    },
+    "./intelligence/project-templates.js": {
+      "import": "./dist/intelligence/project-templates.js",
+      "types": "./dist/intelligence/project-templates.d.ts"
+    },
+    "./intelligence/team-procedures.js": {
+      "import": "./dist/intelligence/team-procedures.js",
+      "types": "./dist/intelligence/team-procedures.d.ts"
+    },
+    "./intelligence/comments.js": {
+      "import": "./dist/intelligence/comments.js",
+      "types": "./dist/intelligence/comments.d.ts"
+    },
+    "./intelligence/cost-tracker.js": {
+      "import": "./dist/intelligence/cost-tracker.js",
+      "types": "./dist/intelligence/cost-tracker.d.ts"
+    },
+    "./intelligence/digest-delivery.js": {
+      "import": "./dist/intelligence/digest-delivery.js",
+      "types": "./dist/intelligence/digest-delivery.d.ts"
+    },
+    "./intelligence/resilience.js": {
+      "import": "./dist/intelligence/resilience.js",
+      "types": "./dist/intelligence/resilience.d.ts"
+    },
+    "./telemetry.js": {
+      "import": "./dist/telemetry.js",
+      "types": "./dist/telemetry.d.ts"
+    },
+    "./db/factory.js": {
+      "import": "./dist/db/factory.js",
+      "types": "./dist/db/factory.d.ts"
+    },
+    "./db/adapter.js": {
+      "import": "./dist/db/adapter.js",
+      "types": "./dist/db/adapter.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').cpSync('src/db/migrations', 'dist/db/migrations', {recursive: true, force: true})\"",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.33.0",
+    "@opentelemetry/api": "^1.9.1",
+    "better-sqlite3": "^12.8.0",
+    "crypto-js": "^4.2.0",
+    "nodemailer": "^8.0.5",
+    "openai": "^4.73.0",
+    "pg": "^8.13.0",
+    "pgvector": "^0.2.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/crypto-js": "^4.2.0",
+    "@types/nodemailer": "^8.0.0",
+    "@types/pg": "^8.11.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "optionalDependencies": {
+    "@xenova/transformers": "^2.17.0"
+  }
+}

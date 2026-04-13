@@ -1,0 +1,1529 @@
+{
+  "test_cases": [
+    {
+      "id": "cd-001",
+      "decision_a": {
+        "id": "ca-001",
+        "title": "Use JWT for API authentication",
+        "description": "Stateless JWT tokens for all API auth",
+        "tags": [
+          "auth",
+          "jwt"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "authentication"
+      },
+      "decision_b": {
+        "id": "cb-001",
+        "title": "Use server-side sessions with Redis for API authentication",
+        "description": "Session-based auth with Redis store for session management",
+        "tags": [
+          "auth",
+          "sessions",
+          "redis"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "authentication"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Mutually exclusive authentication strategies: stateless JWT vs stateful sessions"
+    },
+    {
+      "id": "cd-002",
+      "decision_a": {
+        "id": "ca-002",
+        "title": "Use PostgreSQL for all data storage",
+        "description": "Single PostgreSQL database for all application data including caching",
+        "tags": [
+          "db",
+          "postgres"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "decision_b": {
+        "id": "cb-002",
+        "title": "Use MongoDB as the primary database",
+        "description": "MongoDB document store for flexible schema and horizontal scaling",
+        "tags": [
+          "db",
+          "mongodb"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different primary databases cannot coexist for the same data"
+    },
+    {
+      "id": "cd-003",
+      "decision_a": {
+        "id": "ca-003",
+        "title": "Deploy with Docker Compose on VPS",
+        "description": "Self-hosted Docker deployment on dedicated VPS",
+        "tags": [
+          "deploy",
+          "docker",
+          "vps"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-003",
+        "title": "Deploy with AWS Lambda serverless",
+        "description": "Serverless deployment using AWS Lambda and API Gateway",
+        "tags": [
+          "deploy",
+          "lambda",
+          "serverless"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Fundamentally different deployment architectures"
+    },
+    {
+      "id": "cd-004",
+      "decision_a": {
+        "id": "ca-004",
+        "title": "Use REST API with JSON",
+        "description": "RESTful API design with JSON request/response bodies",
+        "tags": [
+          "api",
+          "rest",
+          "json"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-004",
+        "title": "Use GraphQL as the primary API",
+        "description": "GraphQL API for flexible client queries and reduced over-fetching",
+        "tags": [
+          "api",
+          "graphql"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "REST and GraphQL as primary API are mutually exclusive architectural choices"
+    },
+    {
+      "id": "cd-005",
+      "decision_a": {
+        "id": "ca-005",
+        "title": "Use Tailwind CSS for styling",
+        "description": "Utility-first CSS framework for rapid UI development",
+        "tags": [
+          "frontend",
+          "css",
+          "tailwind"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-005",
+        "title": "Use CSS Modules for component styling",
+        "description": "Scoped CSS modules for component-level style encapsulation",
+        "tags": [
+          "frontend",
+          "css",
+          "modules"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different CSS methodologies as primary styling approach"
+    },
+    {
+      "id": "cd-006",
+      "decision_a": {
+        "id": "ca-006",
+        "title": "Use Prisma ORM",
+        "description": "Prisma for type-safe database access with auto-generated client",
+        "tags": [
+          "db",
+          "orm",
+          "prisma"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "decision_b": {
+        "id": "cb-006",
+        "title": "Use raw SQL queries only",
+        "description": "Direct SQL queries for maximum control and performance",
+        "tags": [
+          "db",
+          "sql",
+          "raw"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "ORM vs raw SQL are opposing database access strategies"
+    },
+    {
+      "id": "cd-007",
+      "decision_a": {
+        "id": "ca-007",
+        "title": "Single-tenant architecture",
+        "description": "Each customer gets their own database and server instance",
+        "tags": [
+          "architecture",
+          "single-tenant"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-007",
+        "title": "Multi-tenant shared database",
+        "description": "All customers share one database with RLS for isolation",
+        "tags": [
+          "architecture",
+          "multi-tenant",
+          "rls"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Opposing multi-tenancy strategies"
+    },
+    {
+      "id": "cd-008",
+      "decision_a": {
+        "id": "ca-008",
+        "title": "Monorepo with Turborepo",
+        "description": "All packages in one repo with Turbo for build orchestration",
+        "tags": [
+          "tooling",
+          "monorepo",
+          "turbo"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-008",
+        "title": "Separate repos per package",
+        "description": "Each package in its own repository with independent versioning",
+        "tags": [
+          "tooling",
+          "polyrepo"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Monorepo vs polyrepo are mutually exclusive code organization strategies"
+    },
+    {
+      "id": "cd-009",
+      "decision_a": {
+        "id": "ca-009",
+        "title": "Express.js for HTTP server",
+        "description": "Express framework for Node.js HTTP handling",
+        "tags": [
+          "api",
+          "express",
+          "server"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-009",
+        "title": "Hono for HTTP server",
+        "description": "Hono framework for edge-ready HTTP handling",
+        "tags": [
+          "api",
+          "hono",
+          "server"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different HTTP frameworks for the same server"
+    },
+    {
+      "id": "cd-010",
+      "decision_a": {
+        "id": "ca-010",
+        "title": "Jest as test runner",
+        "description": "Jest for all unit and integration tests",
+        "tags": [
+          "testing",
+          "jest"
+        ],
+        "confidence": "high",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "decision_b": {
+        "id": "cb-010",
+        "title": "Vitest as test runner",
+        "description": "Vitest for native ESM and TypeScript test support",
+        "tags": [
+          "testing",
+          "vitest"
+        ],
+        "confidence": "high",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different test runners for the same test suite"
+    },
+    {
+      "id": "cd-011",
+      "decision_a": {
+        "id": "ca-011",
+        "title": "Store files in S3",
+        "description": "AWS S3 for all file and asset storage",
+        "tags": [
+          "storage",
+          "s3",
+          "aws"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-011",
+        "title": "Store files on local filesystem",
+        "description": "Local disk storage for uploaded files and assets",
+        "tags": [
+          "storage",
+          "filesystem",
+          "local"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different file storage strategies"
+    },
+    {
+      "id": "cd-012",
+      "decision_a": {
+        "id": "ca-012",
+        "title": "Use WebSockets for all real-time features",
+        "description": "WebSocket connections for live updates and collaboration",
+        "tags": [
+          "websocket",
+          "real-time"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-012",
+        "title": "Use Server-Sent Events for real-time",
+        "description": "SSE for one-way real-time server-to-client updates",
+        "tags": [
+          "sse",
+          "real-time"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different real-time communication protocols as primary choice"
+    },
+    {
+      "id": "cd-013",
+      "decision_a": {
+        "id": "ca-013",
+        "title": "Dark mode as default theme",
+        "description": "Dashboard defaults to dark color scheme",
+        "tags": [
+          "frontend",
+          "theme",
+          "dark"
+        ],
+        "confidence": "medium",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-013",
+        "title": "Light mode as default theme",
+        "description": "Dashboard defaults to light color scheme for readability",
+        "tags": [
+          "frontend",
+          "theme",
+          "light"
+        ],
+        "confidence": "medium",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Opposing default theme choices"
+    },
+    {
+      "id": "cd-014",
+      "decision_a": {
+        "id": "ca-014",
+        "title": "Offset-based pagination",
+        "description": "Use LIMIT/OFFSET for paginating list endpoints",
+        "tags": [
+          "api",
+          "pagination",
+          "offset"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-014",
+        "title": "Cursor-based pagination",
+        "description": "Use cursor tokens for consistent pagination under concurrent writes",
+        "tags": [
+          "api",
+          "pagination",
+          "cursor"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different pagination strategies for the same endpoints"
+    },
+    {
+      "id": "cd-015",
+      "decision_a": {
+        "id": "ca-015",
+        "title": "Use npm for package management",
+        "description": "npm as the package manager for the project",
+        "tags": [
+          "tooling",
+          "npm"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-015",
+        "title": "Use pnpm for package management",
+        "description": "pnpm for efficient disk usage and strict dependency resolution",
+        "tags": [
+          "tooling",
+          "pnpm"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different package managers for the same project"
+    },
+    {
+      "id": "cd-016",
+      "decision_a": {
+        "id": "ca-016",
+        "title": "Allow nullable foreign keys for flexibility",
+        "description": "Foreign keys can be null to support partial data ingestion",
+        "tags": [
+          "db",
+          "schema",
+          "nullable"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "decision_b": {
+        "id": "cb-016",
+        "title": "Enforce strict NOT NULL on all foreign keys",
+        "description": "All foreign keys must reference valid records, no nulls allowed",
+        "tags": [
+          "db",
+          "schema",
+          "strict"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Opposing database schema strictness policies"
+    },
+    {
+      "id": "cd-017",
+      "decision_a": {
+        "id": "ca-017",
+        "title": "Log all request bodies for debugging",
+        "description": "Full request body logging in development and staging",
+        "tags": [
+          "logging",
+          "debug",
+          "security"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-017",
+        "title": "Never log request bodies containing credentials",
+        "description": "Strip sensitive fields from all log output",
+        "tags": [
+          "logging",
+          "security",
+          "privacy"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "security"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Conflicting logging policies regarding sensitive data"
+    },
+    {
+      "id": "cd-018",
+      "decision_a": {
+        "id": "ca-018",
+        "title": "Use argon2 for password hashing",
+        "description": "Argon2id for memory-hard password hashing",
+        "tags": [
+          "auth",
+          "argon2",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "authentication"
+      },
+      "decision_b": {
+        "id": "cb-018",
+        "title": "Use bcrypt for password hashing",
+        "description": "bcrypt with cost factor 12 for password hashing",
+        "tags": [
+          "auth",
+          "bcrypt",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "authentication"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different password hashing algorithms as primary choice"
+    },
+    {
+      "id": "cd-019",
+      "decision_a": {
+        "id": "ca-019",
+        "title": "React for frontend framework",
+        "description": "React with hooks for the dashboard SPA",
+        "tags": [
+          "frontend",
+          "react"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-019",
+        "title": "Vue.js for frontend framework",
+        "description": "Vue 3 with Composition API for the dashboard",
+        "tags": [
+          "frontend",
+          "vue"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Different frontend frameworks for the same application"
+    },
+    {
+      "id": "cd-020",
+      "decision_a": {
+        "id": "ca-020",
+        "title": "60-second JWT token expiry",
+        "description": "Very short-lived tokens refreshed frequently for security",
+        "tags": [
+          "auth",
+          "jwt",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "authentication"
+      },
+      "decision_b": {
+        "id": "cb-020",
+        "title": "24-hour JWT token expiry",
+        "description": "Long-lived tokens for better UX, fewer refresh calls",
+        "tags": [
+          "auth",
+          "jwt",
+          "ux"
+        ],
+        "confidence": "medium",
+        "made_by": "frontend",
+        "domain": "authentication"
+      },
+      "ground_truth": "contradiction",
+      "explanation": "Conflicting token lifetime policies"
+    },
+    {
+      "id": "cd-021",
+      "decision_a": {
+        "id": "ca-021",
+        "title": "Use TypeScript strict mode",
+        "description": "Enable strict TypeScript checking across all packages",
+        "tags": [
+          "typescript",
+          "config"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-021",
+        "title": "Use ESLint with TypeScript rules",
+        "description": "ESLint configured with @typescript-eslint for code quality",
+        "tags": [
+          "typescript",
+          "eslint",
+          "quality"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "general"
+      },
+      "ground_truth": "compatible",
+      "explanation": "TypeScript strict mode and ESLint are complementary quality tools"
+    },
+    {
+      "id": "cd-022",
+      "decision_a": {
+        "id": "ca-022",
+        "title": "Use PostgreSQL for data storage",
+        "description": "PostgreSQL as the primary relational database",
+        "tags": [
+          "db",
+          "postgres"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "decision_b": {
+        "id": "cb-022",
+        "title": "Use Redis for caching",
+        "description": "Redis for session caching and rate limit counters",
+        "tags": [
+          "cache",
+          "redis"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "ground_truth": "compatible",
+      "explanation": "PostgreSQL for storage and Redis for caching serve different purposes"
+    },
+    {
+      "id": "cd-023",
+      "decision_a": {
+        "id": "ca-023",
+        "title": "Deploy with Docker",
+        "description": "Containerized deployment using Docker",
+        "tags": [
+          "deploy",
+          "docker"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-023",
+        "title": "Use GitHub Actions for CI/CD",
+        "description": "Automated testing and deployment via GitHub Actions",
+        "tags": [
+          "ci",
+          "github-actions"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Docker deployment and GitHub Actions CI/CD are complementary"
+    },
+    {
+      "id": "cd-024",
+      "decision_a": {
+        "id": "ca-024",
+        "title": "Use React Query for server state",
+        "description": "TanStack Query for API data fetching and caching",
+        "tags": [
+          "frontend",
+          "react-query",
+          "state"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-024",
+        "title": "Use Zustand for client state",
+        "description": "Zustand for lightweight client-side state management",
+        "tags": [
+          "frontend",
+          "zustand",
+          "state"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Server state (React Query) and client state (Zustand) are different concerns"
+    },
+    {
+      "id": "cd-025",
+      "decision_a": {
+        "id": "ca-025",
+        "title": "Implement RBAC",
+        "description": "Role-based access control with admin, editor, viewer roles",
+        "tags": [
+          "security",
+          "rbac"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "security"
+      },
+      "decision_b": {
+        "id": "cb-025",
+        "title": "Implement audit logging",
+        "description": "Log all mutations to an audit trail table",
+        "tags": [
+          "security",
+          "audit"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "security"
+      },
+      "ground_truth": "compatible",
+      "explanation": "RBAC and audit logging are independent security features"
+    },
+    {
+      "id": "cd-026",
+      "decision_a": {
+        "id": "ca-026",
+        "title": "Run unit tests on every PR",
+        "description": "CI runs the full unit test suite on pull requests",
+        "tags": [
+          "testing",
+          "ci",
+          "pr"
+        ],
+        "confidence": "high",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "decision_b": {
+        "id": "cb-026",
+        "title": "Run integration tests nightly",
+        "description": "Full integration test suite runs on a nightly schedule",
+        "tags": [
+          "testing",
+          "ci",
+          "nightly"
+        ],
+        "confidence": "medium",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Unit tests on PR and integration tests nightly are complementary CI strategies"
+    },
+    {
+      "id": "cd-027",
+      "decision_a": {
+        "id": "ca-027",
+        "title": "Use Nginx as reverse proxy",
+        "description": "Nginx for TLS termination and static file serving",
+        "tags": [
+          "nginx",
+          "proxy"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-027",
+        "title": "Use Cloudflare for CDN and DDoS protection",
+        "description": "Cloudflare in front of origin for caching and protection",
+        "tags": [
+          "cloudflare",
+          "cdn",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Nginx and Cloudflare serve at different layers of the stack"
+    },
+    {
+      "id": "cd-028",
+      "decision_a": {
+        "id": "ca-028",
+        "title": "Use Vitest for testing",
+        "description": "Vitest as the test framework",
+        "tags": [
+          "testing",
+          "vitest"
+        ],
+        "confidence": "high",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "decision_b": {
+        "id": "cb-028",
+        "title": "Use Testing Library for DOM assertions",
+        "description": "React Testing Library for component behavior testing",
+        "tags": [
+          "testing",
+          "testing-library",
+          "react"
+        ],
+        "confidence": "high",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Vitest (runner) and Testing Library (assertions) work together"
+    },
+    {
+      "id": "cd-029",
+      "decision_a": {
+        "id": "ca-029",
+        "title": "Use D3.js for graph visualization",
+        "description": "D3 for rendering force-directed decision graphs",
+        "tags": [
+          "frontend",
+          "d3",
+          "visualization"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-029",
+        "title": "Use React for the dashboard shell",
+        "description": "React for component composition and routing",
+        "tags": [
+          "frontend",
+          "react"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "compatible",
+      "explanation": "D3 handles visualization within React components"
+    },
+    {
+      "id": "cd-030",
+      "decision_a": {
+        "id": "ca-030",
+        "title": "Use bcrypt for passwords",
+        "description": "bcrypt hashing for user passwords",
+        "tags": [
+          "auth",
+          "bcrypt"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "authentication"
+      },
+      "decision_b": {
+        "id": "cb-030",
+        "title": "Use SHA-256 for API key hashing",
+        "description": "SHA-256 for hashing API keys before storage",
+        "tags": [
+          "security",
+          "sha256",
+          "api-keys"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "security"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Different hashing for different purposes: passwords vs API keys"
+    },
+    {
+      "id": "cd-031",
+      "decision_a": {
+        "id": "ca-031",
+        "title": "Deploy daily to staging",
+        "description": "Automated daily deployments to staging environment",
+        "tags": [
+          "deploy",
+          "staging",
+          "ci"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-031",
+        "title": "Run tests daily in CI",
+        "description": "Full test suite runs daily on a schedule",
+        "tags": [
+          "testing",
+          "ci",
+          "daily"
+        ],
+        "confidence": "medium",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Daily deploys and daily tests are independent processes in different domains"
+    },
+    {
+      "id": "cd-032",
+      "decision_a": {
+        "id": "ca-032",
+        "title": "Use Zod for API validation",
+        "description": "Zod schemas validate all incoming request bodies",
+        "tags": [
+          "api",
+          "zod",
+          "validation"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-032",
+        "title": "Use TypeScript strict mode",
+        "description": "Strict TypeScript for compile-time type safety",
+        "tags": [
+          "typescript",
+          "strict"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "general"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Runtime validation (Zod) and compile-time types (TS) complement each other"
+    },
+    {
+      "id": "cd-033",
+      "decision_a": {
+        "id": "ca-033",
+        "title": "Use pino for server logging",
+        "description": "Structured JSON logging with pino",
+        "tags": [
+          "logging",
+          "pino"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-033",
+        "title": "Use Sentry for error tracking",
+        "description": "Sentry for exception monitoring and alerting",
+        "tags": [
+          "monitoring",
+          "sentry",
+          "errors"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Logging and error tracking serve different observability needs"
+    },
+    {
+      "id": "cd-034",
+      "decision_a": {
+        "id": "ca-034",
+        "title": "Implement rate limiting",
+        "description": "Token bucket rate limiter on API endpoints",
+        "tags": [
+          "api",
+          "rate-limit",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-034",
+        "title": "Implement request validation",
+        "description": "Validate all request inputs before processing",
+        "tags": [
+          "api",
+          "validation",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Rate limiting and validation are independent API protection layers"
+    },
+    {
+      "id": "cd-035",
+      "decision_a": {
+        "id": "ca-035",
+        "title": "Use conventional commits",
+        "description": "Enforce conventional commit message format",
+        "tags": [
+          "git",
+          "commits",
+          "convention"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-035",
+        "title": "Use semantic versioning",
+        "description": "Follow semver for all package releases",
+        "tags": [
+          "versioning",
+          "semver"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "ground_truth": "compatible",
+      "explanation": "Conventional commits and semver are complementary versioning practices"
+    },
+    {
+      "id": "cd-036",
+      "decision_a": {
+        "id": "ca-036",
+        "title": "Use Node.js 18 LTS",
+        "description": "Node 18 as the runtime for all server packages",
+        "tags": [
+          "runtime",
+          "node",
+          "lts"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-036",
+        "title": "Upgrade to Node.js 22 LTS",
+        "description": "Node 22 for improved performance and native fetch support",
+        "tags": [
+          "runtime",
+          "node",
+          "lts",
+          "upgrade"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Node 22 supersedes Node 18 as the newer LTS version"
+    },
+    {
+      "id": "cd-037",
+      "decision_a": {
+        "id": "ca-037",
+        "title": "Use Express.js v4",
+        "description": "Express 4 for the HTTP server",
+        "tags": [
+          "api",
+          "express"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "decision_b": {
+        "id": "cb-037",
+        "title": "Migrate to Hono framework",
+        "description": "Hono for better TypeScript support and edge compatibility",
+        "tags": [
+          "api",
+          "hono",
+          "migration"
+        ],
+        "confidence": "high",
+        "made_by": "backend",
+        "domain": "api"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Hono replaces Express as an intentional migration"
+    },
+    {
+      "id": "cd-038",
+      "decision_a": {
+        "id": "ca-038",
+        "title": "Deploy to Heroku",
+        "description": "Heroku for simple PaaS deployment",
+        "tags": [
+          "deploy",
+          "heroku",
+          "paas"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-038",
+        "title": "Migrate to Docker on VPS",
+        "description": "Self-hosted Docker deployment for cost and control",
+        "tags": [
+          "deploy",
+          "docker",
+          "vps"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "supersession",
+      "explanation": "VPS Docker deployment supersedes Heroku as an intentional migration"
+    },
+    {
+      "id": "cd-039",
+      "decision_a": {
+        "id": "ca-039",
+        "title": "Use Moment.js for dates",
+        "description": "Moment.js for date formatting and manipulation",
+        "tags": [
+          "tooling",
+          "dates",
+          "moment"
+        ],
+        "confidence": "medium",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-039",
+        "title": "Switch to date-fns",
+        "description": "date-fns for tree-shakeable, immutable date utilities",
+        "tags": [
+          "tooling",
+          "dates",
+          "date-fns"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "supersession",
+      "explanation": "date-fns supersedes Moment.js as a modern replacement"
+    },
+    {
+      "id": "cd-040",
+      "decision_a": {
+        "id": "ca-040",
+        "title": "Use Create React App",
+        "description": "CRA for React project bootstrapping and build",
+        "tags": [
+          "frontend",
+          "cra",
+          "build"
+        ],
+        "confidence": "medium",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-040",
+        "title": "Migrate to Vite",
+        "description": "Vite for faster development builds and better ESM support",
+        "tags": [
+          "frontend",
+          "vite",
+          "build"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Vite supersedes CRA as the build tool"
+    },
+    {
+      "id": "cd-041",
+      "decision_a": {
+        "id": "ca-041",
+        "title": "80% code coverage target",
+        "description": "Minimum 80% line coverage enforced in CI",
+        "tags": [
+          "testing",
+          "coverage"
+        ],
+        "confidence": "medium",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "decision_b": {
+        "id": "cb-041",
+        "title": "Increase coverage target to 90%",
+        "description": "Raised coverage bar to 90% as codebase matures",
+        "tags": [
+          "testing",
+          "coverage"
+        ],
+        "confidence": "high",
+        "made_by": "testing",
+        "domain": "testing"
+      },
+      "ground_truth": "supersession",
+      "explanation": "90% target supersedes the previous 80% target"
+    },
+    {
+      "id": "cd-042",
+      "decision_a": {
+        "id": "ca-042",
+        "title": "Use Prettier with default config",
+        "description": "Prettier for code formatting with default settings",
+        "tags": [
+          "tooling",
+          "prettier",
+          "formatting"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-042",
+        "title": "Customize Prettier to use single quotes and no semicolons",
+        "description": "Updated Prettier config to match team style preferences",
+        "tags": [
+          "tooling",
+          "prettier",
+          "config"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "general"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Custom config supersedes default config for the same tool"
+    },
+    {
+      "id": "cd-043",
+      "decision_a": {
+        "id": "ca-043",
+        "title": "Use JWT with 1-hour expiry",
+        "description": "Access tokens valid for 1 hour",
+        "tags": [
+          "auth",
+          "jwt",
+          "expiry"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "authentication"
+      },
+      "decision_b": {
+        "id": "cb-043",
+        "title": "Reduce JWT expiry to 15 minutes",
+        "description": "Shortened token lifetime for improved security posture",
+        "tags": [
+          "auth",
+          "jwt",
+          "expiry",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "authentication"
+      },
+      "ground_truth": "supersession",
+      "explanation": "15-minute expiry supersedes 1-hour as a security improvement"
+    },
+    {
+      "id": "cd-044",
+      "decision_a": {
+        "id": "ca-044",
+        "title": "Use npm scripts for task running",
+        "description": "package.json scripts for build, test, lint tasks",
+        "tags": [
+          "tooling",
+          "npm",
+          "scripts"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-044",
+        "title": "Adopt Turborepo for task orchestration",
+        "description": "Turbo for parallel builds and intelligent caching across monorepo",
+        "tags": [
+          "tooling",
+          "turbo",
+          "monorepo"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "general"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Turborepo supersedes npm scripts for monorepo task management"
+    },
+    {
+      "id": "cd-045",
+      "decision_a": {
+        "id": "ca-045",
+        "title": "Manual database backups weekly",
+        "description": "DBA runs pg_dump manually every Friday",
+        "tags": [
+          "db",
+          "backup",
+          "manual"
+        ],
+        "confidence": "low",
+        "made_by": "devops",
+        "domain": "database"
+      },
+      "decision_b": {
+        "id": "cb-045",
+        "title": "Automated daily database backups with retention",
+        "description": "Cron job runs pg_dump daily, retains 30 days, uploads to S3",
+        "tags": [
+          "db",
+          "backup",
+          "automated",
+          "s3"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "database"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Automated daily backups supersede manual weekly backups"
+    },
+    {
+      "id": "cd-046",
+      "decision_a": {
+        "id": "ca-046",
+        "title": "Use basic console.log for debugging",
+        "description": "Console logging for development debugging",
+        "tags": [
+          "logging",
+          "debug",
+          "console"
+        ],
+        "confidence": "low",
+        "made_by": "backend",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-046",
+        "title": "Implement structured logging with pino",
+        "description": "JSON structured logging for production observability",
+        "tags": [
+          "logging",
+          "pino",
+          "structured"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Structured logging supersedes console.log as the project matures"
+    },
+    {
+      "id": "cd-047",
+      "decision_a": {
+        "id": "ca-047",
+        "title": "SQLite for development database",
+        "description": "SQLite for fast local development without PostgreSQL",
+        "tags": [
+          "db",
+          "sqlite",
+          "dev"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "database"
+      },
+      "decision_b": {
+        "id": "cb-047",
+        "title": "Use Docker PostgreSQL for all environments",
+        "description": "Docker Compose PostgreSQL matches production in all environments",
+        "tags": [
+          "db",
+          "postgres",
+          "docker",
+          "dev"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "database"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Docker PostgreSQL supersedes SQLite for dev environment parity"
+    },
+    {
+      "id": "cd-048",
+      "decision_a": {
+        "id": "ca-048",
+        "title": "Use Axios for HTTP requests",
+        "description": "Axios as the HTTP client library",
+        "tags": [
+          "http",
+          "axios",
+          "client"
+        ],
+        "confidence": "medium",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "decision_b": {
+        "id": "cb-048",
+        "title": "Switch to native fetch API",
+        "description": "Native fetch with thin wrapper, no external dependency",
+        "tags": [
+          "http",
+          "fetch",
+          "native"
+        ],
+        "confidence": "high",
+        "made_by": "frontend",
+        "domain": "frontend"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Native fetch supersedes Axios as Node 18+ includes native fetch"
+    },
+    {
+      "id": "cd-049",
+      "decision_a": {
+        "id": "ca-049",
+        "title": "Store secrets in .env files",
+        "description": "Environment variables in .env files for configuration",
+        "tags": [
+          "config",
+          "env",
+          "secrets"
+        ],
+        "confidence": "medium",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "decision_b": {
+        "id": "cb-049",
+        "title": "Use cloud secret manager for production secrets",
+        "description": "AWS Secrets Manager for production, .env only for local dev",
+        "tags": [
+          "config",
+          "secrets",
+          "aws",
+          "production"
+        ],
+        "confidence": "high",
+        "made_by": "devops",
+        "domain": "infrastructure"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Cloud secret manager supersedes .env files for production environments"
+    },
+    {
+      "id": "cd-050",
+      "decision_a": {
+        "id": "ca-050",
+        "title": "Manual PR reviews by one developer",
+        "description": "Single reviewer required for PR approval",
+        "tags": [
+          "process",
+          "pr",
+          "review"
+        ],
+        "confidence": "medium",
+        "made_by": "backend",
+        "domain": "general"
+      },
+      "decision_b": {
+        "id": "cb-050",
+        "title": "Require two reviewers including security for sensitive PRs",
+        "description": "Enhanced review policy: 2 approvals, security review for auth/db changes",
+        "tags": [
+          "process",
+          "pr",
+          "review",
+          "security"
+        ],
+        "confidence": "high",
+        "made_by": "security",
+        "domain": "general"
+      },
+      "ground_truth": "supersession",
+      "explanation": "Enhanced review policy supersedes the simpler single-reviewer policy"
+    }
+  ]
+}

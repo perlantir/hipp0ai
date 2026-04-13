@@ -1,0 +1,395 @@
+{
+  "shared_candidates_ref": "role-retrieval.json",
+  "test_cases": [
+    {
+      "id": "rd-001",
+      "task": "Review the authentication implementation",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-002",
+      "task": "Assess the database migration strategy",
+      "agent_a": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "agent_b": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-003",
+      "task": "Evaluate the deployment pipeline",
+      "agent_a": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "agent_b": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-004",
+      "task": "Plan the next security audit",
+      "agent_a": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-005",
+      "task": "Review API endpoint design patterns",
+      "agent_a": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "agent_b": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-006",
+      "task": "Assess test coverage adequacy",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-007",
+      "task": "Evaluate the frontend component architecture",
+      "agent_a": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "agent_b": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-008",
+      "task": "Plan the monitoring and observability stack",
+      "agent_a": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-009",
+      "task": "Review the WebSocket collaboration feature",
+      "agent_a": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "agent_b": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-010",
+      "task": "Assess the multi-tenant isolation approach",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-011",
+      "task": "Evaluate CI/CD pipeline efficiency",
+      "agent_a": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "agent_b": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-012",
+      "task": "Plan the database scaling strategy",
+      "agent_a": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "agent_b": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-013",
+      "task": "Review the API rate limiting configuration",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-014",
+      "task": "Assess the logging and debugging strategy",
+      "agent_a": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "agent_b": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-015",
+      "task": "Evaluate the package management approach",
+      "agent_a": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-016",
+      "task": "Review the authentication implementation",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-017",
+      "task": "Assess the database migration strategy",
+      "agent_a": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "agent_b": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-018",
+      "task": "Evaluate the deployment pipeline",
+      "agent_a": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "agent_b": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-019",
+      "task": "Plan the next security audit",
+      "agent_a": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-020",
+      "task": "Review API endpoint design patterns",
+      "agent_a": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "agent_b": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-021",
+      "task": "Assess test coverage adequacy",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-022",
+      "task": "Evaluate the frontend component architecture",
+      "agent_a": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "agent_b": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-023",
+      "task": "Plan the monitoring and observability stack",
+      "agent_a": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-024",
+      "task": "Review the WebSocket collaboration feature",
+      "agent_a": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "agent_b": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-025",
+      "task": "Assess the multi-tenant isolation approach",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-026",
+      "task": "Evaluate CI/CD pipeline efficiency",
+      "agent_a": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "agent_b": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-027",
+      "task": "Plan the database scaling strategy",
+      "agent_a": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "agent_b": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-028",
+      "task": "Review the API rate limiting configuration",
+      "agent_a": {
+        "name": "backend",
+        "role": "Backend API engineer focused on server logic and database design"
+      },
+      "agent_b": {
+        "name": "testing",
+        "role": "QA engineer ensuring test coverage and quality"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-029",
+      "task": "Assess the logging and debugging strategy",
+      "agent_a": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "agent_b": {
+        "name": "frontend",
+        "role": "Frontend engineer building React dashboard components"
+      },
+      "expected_different": true
+    },
+    {
+      "id": "rd-030",
+      "task": "Evaluate the package management approach",
+      "agent_a": {
+        "name": "security",
+        "role": "Security auditor reviewing access control and data protection"
+      },
+      "agent_b": {
+        "name": "devops",
+        "role": "DevOps engineer managing infrastructure and deployments"
+      },
+      "expected_different": true
+    }
+  ]
+}

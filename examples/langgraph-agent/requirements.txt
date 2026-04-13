@@ -1,0 +1,4 @@
+langgraph>=0.2.0
+langchain-openai>=0.2.0
+hipp0-memory>=0.1.0
+hipp0-langgraph>=0.1.0

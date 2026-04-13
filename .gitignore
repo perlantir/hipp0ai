@@ -1,0 +1,43 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.turbo/
+.DS_Store
+coverage/
+*.tgz
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.eggs/
+build/
+*.whl
+
+# Production data — never commit
+data/
+e2e-test.sh
+*.env
+.env.*
+!.env.example
+
+# Local SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Benchmark results (JSON only, keep latest.md)
+benchmarks/results/*.json
+HiPp0-DeSigN/
+.next/
+hipp0.db
+sqlite:*
+
+# AI tooling artifacts
+.claude/
+CLAUDE.md
+.mcp.json

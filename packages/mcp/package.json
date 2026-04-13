@@ -1,0 +1,29 @@
+{
+  "name": "@hipp0/mcp",
+  "version": "0.1.2",
+  "description": "MCP server for Hipp0 — primary entry point for AI agents",
+  "author": "Perlantir",
+  "repository": {"type": "git", "url": "https://github.com/perlantir/hipp0"},
+  "type": "module",
+  "main": "./dist/mcp/src/index.js",
+  "bin": {
+    "hipp0-mcp": "./dist/mcp/src/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@hipp0/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.7.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "tsx": "^4.19.0",
+    "vitest": "^2.1.0"
+  }
+}

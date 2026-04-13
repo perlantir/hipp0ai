@@ -1,0 +1,2793 @@
+{
+  "shared_candidates": [
+    {
+      "id": "d-001",
+      "title": "Use JWT for stateless API authentication",
+      "description": "Chose JWT over session cookies for the REST API to enable horizontal scaling without shared session state",
+      "tags": [
+        "auth",
+        "jwt",
+        "api",
+        "security"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "authentication",
+      "category": "architecture",
+      "related_decisions": [
+        "d-002",
+        "d-003",
+        "d-007",
+        "d-008"
+      ],
+      "days_ago": 5
+    },
+    {
+      "id": "d-002",
+      "title": "Implement OAuth2 with PKCE for third-party login",
+      "description": "Added Google and GitHub OAuth2 flows using PKCE for security in SPAs",
+      "tags": [
+        "auth",
+        "oauth",
+        "login",
+        "frontend"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "authentication",
+      "category": "architecture",
+      "related_decisions": [
+        "d-001",
+        "d-006",
+        "d-003"
+      ],
+      "days_ago": 8
+    },
+    {
+      "id": "d-003",
+      "title": "Store refresh tokens in HTTP-only cookies",
+      "description": "Refresh tokens stored server-side in HTTP-only secure cookies to prevent XSS theft",
+      "tags": [
+        "auth",
+        "cookies",
+        "security",
+        "tokens"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "authentication",
+      "category": "security-policy",
+      "related_decisions": [
+        "d-001",
+        "d-007",
+        "d-005"
+      ],
+      "days_ago": 6
+    },
+    {
+      "id": "d-004",
+      "title": "Rate limit login attempts to 5 per minute",
+      "description": "Brute force protection via rate limiting on /auth/login endpoint",
+      "tags": [
+        "auth",
+        "rate-limit",
+        "security",
+        "api"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "authentication",
+      "category": "security-policy",
+      "related_decisions": [
+        "d-035",
+        "d-001"
+      ],
+      "days_ago": 12
+    },
+    {
+      "id": "d-005",
+      "title": "Use bcrypt with cost factor 12 for password hashing",
+      "description": "bcrypt chosen over argon2 for broader library support, cost 12 balances security and latency",
+      "tags": [
+        "auth",
+        "password",
+        "hashing",
+        "security"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "authentication",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-040",
+        "d-003"
+      ],
+      "days_ago": 15
+    },
+    {
+      "id": "d-006",
+      "title": "Implement magic link passwordless login",
+      "description": "Email-based magic links as primary auth for dashboard users, reducing password fatigue",
+      "tags": [
+        "auth",
+        "magic-link",
+        "email",
+        "ux"
+      ],
+      "confidence": "medium",
+      "made_by": "frontend",
+      "domain": "authentication",
+      "category": "architecture",
+      "related_decisions": [
+        "d-002",
+        "d-001"
+      ],
+      "days_ago": 20
+    },
+    {
+      "id": "d-007",
+      "title": "JWT expiry set to 15 minutes with silent refresh",
+      "description": "Short-lived access tokens with automatic background refresh for security balance",
+      "tags": [
+        "auth",
+        "jwt",
+        "tokens",
+        "security"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "authentication",
+      "category": "configuration",
+      "related_decisions": [
+        "d-001",
+        "d-003"
+      ],
+      "days_ago": 4
+    },
+    {
+      "id": "d-008",
+      "title": "Multi-tenant auth with tenant ID in JWT claims",
+      "description": "Tenant isolation enforced via JWT custom claims checked in middleware",
+      "tags": [
+        "auth",
+        "multi-tenant",
+        "jwt",
+        "rbac"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "authentication",
+      "category": "architecture",
+      "related_decisions": [
+        "d-011",
+        "d-036",
+        "d-001"
+      ],
+      "days_ago": 7
+    },
+    {
+      "id": "d-009",
+      "title": "PostgreSQL with pgvector for embedding storage",
+      "description": "Chose PostgreSQL + pgvector extension for vector similarity search over dedicated vector DBs",
+      "tags": [
+        "db",
+        "postgres",
+        "pgvector",
+        "embeddings"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "database",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-010",
+        "d-011",
+        "d-012",
+        "d-013",
+        "d-014",
+        "d-015"
+      ],
+      "days_ago": 3
+    },
+    {
+      "id": "d-010",
+      "title": "Use connection pooling with PgBouncer",
+      "description": "PgBouncer in transaction mode to handle high-concurrency agent connections",
+      "tags": [
+        "db",
+        "postgres",
+        "performance",
+        "infrastructure"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "database",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-009",
+        "d-015",
+        "d-024"
+      ],
+      "days_ago": 18
+    },
+    {
+      "id": "d-011",
+      "title": "Implement row-level security for tenant isolation",
+      "description": "PostgreSQL RLS policies ensure each tenant only sees their own data",
+      "tags": [
+        "db",
+        "rls",
+        "security",
+        "multi-tenant"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "database",
+      "category": "security-policy",
+      "related_decisions": [
+        "d-008",
+        "d-009",
+        "d-036"
+      ],
+      "days_ago": 10
+    },
+    {
+      "id": "d-012",
+      "title": "Use Drizzle ORM for type-safe database queries",
+      "description": "Drizzle chosen over Prisma for lighter weight and better raw SQL escape hatches",
+      "tags": [
+        "db",
+        "orm",
+        "typescript",
+        "backend"
+      ],
+      "confidence": "medium",
+      "made_by": "backend",
+      "domain": "database",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-009",
+        "d-013",
+        "d-048"
+      ],
+      "days_ago": 6
+    },
+    {
+      "id": "d-013",
+      "title": "Database migrations managed via numbered SQL files",
+      "description": "Plain SQL migration files in supabase/migrations/ run in order, no ORM migration tool",
+      "tags": [
+        "db",
+        "migrations",
+        "sql",
+        "process"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "database",
+      "category": "convention",
+      "related_decisions": [
+        "d-009",
+        "d-012"
+      ],
+      "days_ago": 14
+    },
+    {
+      "id": "d-014",
+      "title": "Add GIN index on decisions.tags for array queries",
+      "description": "GIN index dramatically speeds up tag-based filtering on the decisions table",
+      "tags": [
+        "db",
+        "postgres",
+        "index",
+        "performance"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "database",
+      "category": "configuration",
+      "related_decisions": [
+        "d-009",
+        "d-015"
+      ],
+      "days_ago": 9
+    },
+    {
+      "id": "d-015",
+      "title": "Partition decisions table by project_id for large deployments",
+      "description": "Table partitioning planned for when single-project decision count exceeds 100K",
+      "tags": [
+        "db",
+        "postgres",
+        "partitioning",
+        "scaling"
+      ],
+      "confidence": "medium",
+      "made_by": "devops",
+      "domain": "database",
+      "category": "architecture",
+      "related_decisions": [
+        "d-009",
+        "d-010",
+        "d-014"
+      ],
+      "days_ago": 25
+    },
+    {
+      "id": "d-016",
+      "title": "React with Vite for dashboard SPA",
+      "description": "Vite chosen for fast HMR and build times, React for component ecosystem",
+      "tags": [
+        "frontend",
+        "react",
+        "vite",
+        "dashboard"
+      ],
+      "confidence": "high",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-017",
+        "d-018",
+        "d-019",
+        "d-020",
+        "d-021",
+        "d-022"
+      ],
+      "days_ago": 5
+    },
+    {
+      "id": "d-017",
+      "title": "Tailwind CSS with custom design tokens",
+      "description": "Utility-first CSS with project-specific color and spacing tokens in tailwind.config",
+      "tags": [
+        "frontend",
+        "css",
+        "tailwind",
+        "design"
+      ],
+      "confidence": "high",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-016",
+        "d-019",
+        "d-022"
+      ],
+      "days_ago": 7
+    },
+    {
+      "id": "d-018",
+      "title": "Use React Query for server state management",
+      "description": "TanStack Query handles caching, refetching, and optimistic updates for API data",
+      "tags": [
+        "frontend",
+        "react",
+        "state",
+        "api"
+      ],
+      "confidence": "high",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-016",
+        "d-047",
+        "d-031"
+      ],
+      "days_ago": 4
+    },
+    {
+      "id": "d-019",
+      "title": "Glassmorphism design system with dark mode default",
+      "description": "Dashboard uses frosted glass card effects and defaults to dark theme",
+      "tags": [
+        "frontend",
+        "design",
+        "ui",
+        "theme"
+      ],
+      "confidence": "medium",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "convention",
+      "related_decisions": [
+        "d-016",
+        "d-017",
+        "d-020"
+      ],
+      "days_ago": 8
+    },
+    {
+      "id": "d-020",
+      "title": "D3.js for decision graph visualization",
+      "description": "D3 force-directed graph renders decision relationships and contradiction links",
+      "tags": [
+        "frontend",
+        "d3",
+        "visualization",
+        "graph"
+      ],
+      "confidence": "high",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-016",
+        "d-019"
+      ],
+      "days_ago": 12
+    },
+    {
+      "id": "d-021",
+      "title": "Component tests with Vitest and Testing Library",
+      "description": "All dashboard components tested with Vitest + React Testing Library, not Cypress",
+      "tags": [
+        "frontend",
+        "testing",
+        "vitest",
+        "components"
+      ],
+      "confidence": "high",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-016",
+        "d-041",
+        "d-042"
+      ],
+      "days_ago": 11
+    },
+    {
+      "id": "d-022",
+      "title": "Responsive layout with mobile breakpoint at 768px",
+      "description": "Dashboard adapts to tablet/mobile with collapsible sidebar and stacked layouts",
+      "tags": [
+        "frontend",
+        "responsive",
+        "mobile",
+        "css"
+      ],
+      "confidence": "medium",
+      "made_by": "frontend",
+      "domain": "frontend",
+      "category": "convention",
+      "related_decisions": [
+        "d-016",
+        "d-017"
+      ],
+      "days_ago": 15
+    },
+    {
+      "id": "d-023",
+      "title": "Docker Compose for local development environment",
+      "description": "Single docker-compose.yml spins up PostgreSQL, server, and dashboard for local dev",
+      "tags": [
+        "docker",
+        "compose",
+        "dev",
+        "infrastructure"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-024",
+        "d-025",
+        "d-029"
+      ],
+      "days_ago": 3
+    },
+    {
+      "id": "d-024",
+      "title": "Deploy to VPS with Docker instead of serverless",
+      "description": "Chose dedicated VPS with Docker over AWS Lambda for persistent WebSocket connections",
+      "tags": [
+        "deploy",
+        "docker",
+        "vps",
+        "infrastructure"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "architecture",
+      "related_decisions": [
+        "d-023",
+        "d-025",
+        "d-026"
+      ],
+      "days_ago": 6
+    },
+    {
+      "id": "d-025",
+      "title": "Nginx reverse proxy with SSL termination",
+      "description": "Nginx handles TLS, serves dashboard static files, and proxies /api/ to the server",
+      "tags": [
+        "nginx",
+        "ssl",
+        "proxy",
+        "infrastructure"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "configuration",
+      "related_decisions": [
+        "d-024",
+        "d-027",
+        "d-023"
+      ],
+      "days_ago": 8
+    },
+    {
+      "id": "d-026",
+      "title": "GitHub Actions for CI/CD pipeline",
+      "description": "Automated testing, building, and deployment triggered on push to main",
+      "tags": [
+        "ci",
+        "cd",
+        "github-actions",
+        "automation"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-024",
+        "d-041",
+        "d-042",
+        "d-049"
+      ],
+      "days_ago": 5
+    },
+    {
+      "id": "d-027",
+      "title": "Cloudflare for DNS and DDoS protection",
+      "description": "Domain DNS managed through Cloudflare with proxy enabled for DDoS mitigation",
+      "tags": [
+        "dns",
+        "cloudflare",
+        "security",
+        "infrastructure"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-025",
+        "d-024"
+      ],
+      "days_ago": 10
+    },
+    {
+      "id": "d-028",
+      "title": "Structured logging with pino",
+      "description": "All server logs use pino JSON format for structured querying and log aggregation",
+      "tags": [
+        "logging",
+        "pino",
+        "observability",
+        "backend"
+      ],
+      "confidence": "medium",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-029",
+        "d-038"
+      ],
+      "days_ago": 7
+    },
+    {
+      "id": "d-029",
+      "title": "Health check endpoint at /api/health",
+      "description": "Server exposes /api/health returning status, uptime, and database connectivity",
+      "tags": [
+        "health",
+        "monitoring",
+        "api",
+        "infrastructure"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "infrastructure",
+      "category": "convention",
+      "related_decisions": [
+        "d-028",
+        "d-023"
+      ],
+      "days_ago": 4
+    },
+    {
+      "id": "d-030",
+      "title": "Hono framework for HTTP server",
+      "description": "Hono chosen over Express for better TypeScript support, middleware composition, and performance",
+      "tags": [
+        "api",
+        "hono",
+        "server",
+        "typescript"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "api",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-031",
+        "d-032",
+        "d-035"
+      ],
+      "days_ago": 3
+    },
+    {
+      "id": "d-031",
+      "title": "REST API with versioned routes under /api/v1",
+      "description": "All API routes prefixed with /api/v1 for future backward compatibility",
+      "tags": [
+        "api",
+        "rest",
+        "versioning",
+        "backend"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "api",
+      "category": "convention",
+      "related_decisions": [
+        "d-030",
+        "d-033",
+        "d-032"
+      ],
+      "days_ago": 5
+    },
+    {
+      "id": "d-032",
+      "title": "Zod validation on all request bodies",
+      "description": "Every POST/PUT endpoint validates input with Zod schemas before processing",
+      "tags": [
+        "api",
+        "validation",
+        "zod",
+        "typescript"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "api",
+      "category": "convention",
+      "related_decisions": [
+        "d-030",
+        "d-031",
+        "d-048"
+      ],
+      "days_ago": 4
+    },
+    {
+      "id": "d-033",
+      "title": "Paginate all list endpoints with cursor-based pagination",
+      "description": "List endpoints use cursor pagination instead of offset for consistent results under concurrent writes",
+      "tags": [
+        "api",
+        "pagination",
+        "cursor",
+        "backend"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "api",
+      "category": "convention",
+      "related_decisions": [
+        "d-031",
+        "d-012"
+      ],
+      "days_ago": 9
+    },
+    {
+      "id": "d-034",
+      "title": "WebSocket upgrade for real-time collaboration rooms",
+      "description": "Collab rooms use WebSocket with polling fallback for real-time message delivery",
+      "tags": [
+        "api",
+        "websocket",
+        "collab",
+        "real-time"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "api",
+      "category": "architecture",
+      "related_decisions": [
+        "d-045",
+        "d-046",
+        "d-030"
+      ],
+      "days_ago": 6
+    },
+    {
+      "id": "d-035",
+      "title": "API rate limiting at 300 req/min for authenticated users",
+      "description": "Token bucket rate limiter: 60/min unauthenticated, 300/min authenticated, 10/min for AI endpoints",
+      "tags": [
+        "api",
+        "rate-limit",
+        "security",
+        "backend"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "api",
+      "category": "configuration",
+      "related_decisions": [
+        "d-004",
+        "d-030",
+        "d-027"
+      ],
+      "days_ago": 12
+    },
+    {
+      "id": "d-036",
+      "title": "RBAC with four roles: admin, editor, viewer, agent",
+      "description": "Role-based access control with granular permissions per role",
+      "tags": [
+        "security",
+        "rbac",
+        "roles",
+        "access"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "security",
+      "category": "architecture",
+      "related_decisions": [
+        "d-008",
+        "d-011",
+        "d-037",
+        "d-038"
+      ],
+      "days_ago": 8
+    },
+    {
+      "id": "d-037",
+      "title": "CORS restricted to dashboard origin and localhost",
+      "description": "CORS whitelist includes only the production dashboard domain and localhost for dev",
+      "tags": [
+        "security",
+        "cors",
+        "api",
+        "frontend"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "security",
+      "category": "configuration",
+      "related_decisions": [
+        "d-036",
+        "d-039",
+        "d-025"
+      ],
+      "days_ago": 10
+    },
+    {
+      "id": "d-038",
+      "title": "Audit log for all decision mutations",
+      "description": "Every create, update, delete on decisions writes to audit_log table with actor and timestamp",
+      "tags": [
+        "security",
+        "audit",
+        "logging",
+        "compliance"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "security",
+      "category": "architecture",
+      "related_decisions": [
+        "d-036",
+        "d-028"
+      ],
+      "days_ago": 14
+    },
+    {
+      "id": "d-039",
+      "title": "Content Security Policy headers on dashboard",
+      "description": "Strict CSP headers prevent inline scripts and restrict resource origins",
+      "tags": [
+        "security",
+        "csp",
+        "headers",
+        "frontend"
+      ],
+      "confidence": "medium",
+      "made_by": "security",
+      "domain": "security",
+      "category": "configuration",
+      "related_decisions": [
+        "d-037",
+        "d-036"
+      ],
+      "days_ago": 11
+    },
+    {
+      "id": "d-040",
+      "title": "API keys hashed with SHA-256 before storage",
+      "description": "Agent API keys are stored as SHA-256 hashes, never in plaintext",
+      "tags": [
+        "security",
+        "api-keys",
+        "hashing",
+        "storage"
+      ],
+      "confidence": "high",
+      "made_by": "security",
+      "domain": "security",
+      "category": "security-policy",
+      "related_decisions": [
+        "d-005",
+        "d-001",
+        "d-036"
+      ],
+      "days_ago": 16
+    },
+    {
+      "id": "d-041",
+      "title": "Vitest as test runner for all packages",
+      "description": "Vitest chosen for native ESM support, TypeScript integration, and fast execution",
+      "tags": [
+        "testing",
+        "vitest",
+        "typescript",
+        "tooling"
+      ],
+      "confidence": "high",
+      "made_by": "testing",
+      "domain": "testing",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-042",
+        "d-043",
+        "d-044",
+        "d-021"
+      ],
+      "days_ago": 4
+    },
+    {
+      "id": "d-042",
+      "title": "Minimum 80% code coverage target",
+      "description": "CI enforces 80% line coverage on core and server packages",
+      "tags": [
+        "testing",
+        "coverage",
+        "ci",
+        "quality"
+      ],
+      "confidence": "medium",
+      "made_by": "testing",
+      "domain": "testing",
+      "category": "convention",
+      "related_decisions": [
+        "d-041",
+        "d-026"
+      ],
+      "days_ago": 7
+    },
+    {
+      "id": "d-043",
+      "title": "Mock database with in-memory SQLite for unit tests",
+      "description": "Unit tests use SQLite adapter to avoid PostgreSQL dependency in CI",
+      "tags": [
+        "testing",
+        "sqlite",
+        "mocking",
+        "database"
+      ],
+      "confidence": "high",
+      "made_by": "testing",
+      "domain": "testing",
+      "category": "architecture",
+      "related_decisions": [
+        "d-041",
+        "d-009"
+      ],
+      "days_ago": 9
+    },
+    {
+      "id": "d-044",
+      "title": "Snapshot tests for API response shapes",
+      "description": "API endpoint tests use snapshot testing to catch unintended response format changes",
+      "tags": [
+        "testing",
+        "snapshots",
+        "api",
+        "regression"
+      ],
+      "confidence": "medium",
+      "made_by": "testing",
+      "domain": "testing",
+      "category": "convention",
+      "related_decisions": [
+        "d-041",
+        "d-031"
+      ],
+      "days_ago": 12
+    },
+    {
+      "id": "d-045",
+      "title": "WebSocket rooms scoped by collaboration token",
+      "description": "Each collab room gets a unique token, WebSocket connections join room by token",
+      "tags": [
+        "collab",
+        "websocket",
+        "rooms",
+        "real-time"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "collaboration",
+      "category": "architecture",
+      "related_decisions": [
+        "d-034",
+        "d-046"
+      ],
+      "days_ago": 6
+    },
+    {
+      "id": "d-046",
+      "title": "Presence indicators show active collaborators",
+      "description": "Green dot presence indicators update via WebSocket heartbeats every 30 seconds",
+      "tags": [
+        "collab",
+        "presence",
+        "ui",
+        "real-time"
+      ],
+      "confidence": "medium",
+      "made_by": "frontend",
+      "domain": "collaboration",
+      "category": "architecture",
+      "related_decisions": [
+        "d-045",
+        "d-047",
+        "d-034"
+      ],
+      "days_ago": 5
+    },
+    {
+      "id": "d-047",
+      "title": "Optimistic UI updates for collab messages",
+      "description": "Messages appear instantly in sender's UI before server confirmation",
+      "tags": [
+        "collab",
+        "optimistic",
+        "ui",
+        "frontend"
+      ],
+      "confidence": "medium",
+      "made_by": "frontend",
+      "domain": "collaboration",
+      "category": "convention",
+      "related_decisions": [
+        "d-046",
+        "d-018"
+      ],
+      "days_ago": 8
+    },
+    {
+      "id": "d-048",
+      "title": "TypeScript strict mode across all packages",
+      "description": "tsconfig uses strict: true, noUncheckedIndexedAccess, and exactOptionalPropertyTypes",
+      "tags": [
+        "typescript",
+        "config",
+        "quality",
+        "tooling"
+      ],
+      "confidence": "high",
+      "made_by": "backend",
+      "domain": "general",
+      "category": "convention",
+      "related_decisions": [
+        "d-049",
+        "d-012",
+        "d-032"
+      ],
+      "days_ago": 3
+    },
+    {
+      "id": "d-049",
+      "title": "pnpm monorepo with Turborepo for builds",
+      "description": "pnpm workspaces with Turborepo for parallel builds and caching across 6 packages",
+      "tags": [
+        "monorepo",
+        "pnpm",
+        "turbo",
+        "tooling"
+      ],
+      "confidence": "high",
+      "made_by": "devops",
+      "domain": "general",
+      "category": "tool-choice",
+      "related_decisions": [
+        "d-048",
+        "d-026"
+      ],
+      "days_ago": 5
+    },
+    {
+      "id": "d-050",
+      "title": "Conventional commits enforced via commitlint",
+      "description": "All commits must follow conventional commit format for automated changelog generation",
+      "tags": [
+        "git",
+        "commits",
+        "convention",
+        "tooling"
+      ],
+      "confidence": "medium",
+      "made_by": "devops",
+      "domain": "general",
+      "category": "convention",
+      "related_decisions": [
+        "d-049",
+        "d-026"
+      ],
+      "days_ago": 10
+    }
+  ],
+  "test_cases": [
+    {
+      "id": "rr-001",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design the authentication flow for the new REST API",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-002",
+        "d-003",
+        "d-007",
+        "d-008"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-019",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-002",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement cursor-based pagination for the decisions list endpoint",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-030",
+        "d-031",
+        "d-033",
+        "d-034"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-003",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Set up the database connection pooling layer",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-010",
+        "d-012",
+        "d-014"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-004",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Add request validation middleware to all POST endpoints",
+      "ground_truth_relevant": [
+        "d-030",
+        "d-031",
+        "d-032",
+        "d-033",
+        "d-001"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-005",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design the WebSocket upgrade handler for collab rooms",
+      "ground_truth_relevant": [
+        "d-034",
+        "d-045",
+        "d-030",
+        "d-031"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-006",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement row-level security for multi-tenant data isolation",
+      "ground_truth_relevant": [
+        "d-011",
+        "d-008",
+        "d-009"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-007",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Add structured logging to all API route handlers",
+      "ground_truth_relevant": [
+        "d-030",
+        "d-031",
+        "d-033",
+        "d-034"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-008",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Optimize database queries for the compile endpoint",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-011",
+        "d-012",
+        "d-013",
+        "d-014"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-046",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-009",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design the decision storage schema and indexes",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-013",
+        "d-014",
+        "d-012",
+        "d-011"
+      ],
+      "ground_truth_irrelevant": [
+        "d-019",
+        "d-020",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-010",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement the bulk decision import pipeline",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-031",
+        "d-048"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-046",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-011",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Add API versioning strategy for backward compatibility",
+      "ground_truth_relevant": [
+        "d-031",
+        "d-030",
+        "d-033",
+        "d-032"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-012",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement refresh token rotation logic",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-002",
+        "d-007",
+        "d-008"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-013",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design the MCP tool response format",
+      "ground_truth_relevant": [
+        "d-030",
+        "d-031",
+        "d-048"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-014",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Set up database migration workflow",
+      "ground_truth_relevant": [
+        "d-013",
+        "d-009",
+        "d-012",
+        "d-014"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-015",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement the decision distillery extractor",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-012",
+        "d-030",
+        "d-048"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-016",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Add health check and readiness probe endpoints",
+      "ground_truth_relevant": [
+        "d-030",
+        "d-031",
+        "d-032",
+        "d-033"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-017",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design the feedback ingestion pipeline",
+      "ground_truth_relevant": [
+        "d-030",
+        "d-031",
+        "d-009",
+        "d-012"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-018",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement Zod schemas for all API types",
+      "ground_truth_relevant": [
+        "d-032",
+        "d-048",
+        "d-030",
+        "d-031"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-019",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Optimize embedding storage and retrieval",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-011",
+        "d-012",
+        "d-014"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-020",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Set up the Hono middleware chain",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-008",
+        "d-014",
+        "d-030"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-021",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design multi-tenant database schema",
+      "ground_truth_relevant": [
+        "d-008",
+        "d-009",
+        "d-011",
+        "d-012",
+        "d-013"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-022",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement the context compiler scoring pipeline",
+      "ground_truth_relevant": [
+        "d-012",
+        "d-014",
+        "d-030",
+        "d-048"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-023",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Add database transaction handling for batch operations",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-012",
+        "d-013",
+        "d-010"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-024",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Design the outcome tracking data model",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-011",
+        "d-012",
+        "d-031"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-046"
+      ]
+    },
+    {
+      "id": "rr-025",
+      "agent_name": "backend",
+      "agent_role": "Backend engineer responsible for API design, database architecture, and server-side logic",
+      "task": "Implement API key authentication middleware",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-002",
+        "d-004",
+        "d-030"
+      ],
+      "ground_truth_irrelevant": [
+        "d-017",
+        "d-019",
+        "d-022"
+      ]
+    },
+    {
+      "id": "rr-026",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Build the decision graph visualization component",
+      "ground_truth_relevant": [
+        "d-020",
+        "d-016",
+        "d-018",
+        "d-019",
+        "d-017"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-027",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Implement the dark mode theme toggle",
+      "ground_truth_relevant": [
+        "d-019",
+        "d-017",
+        "d-016",
+        "d-022",
+        "d-018"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-028",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Add responsive sidebar navigation",
+      "ground_truth_relevant": [
+        "d-022",
+        "d-016",
+        "d-017",
+        "d-019",
+        "d-018"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-029",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Build the real-time collaboration UI",
+      "ground_truth_relevant": [
+        "d-046",
+        "d-047",
+        "d-016",
+        "d-018",
+        "d-034"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-015"
+      ]
+    },
+    {
+      "id": "rr-030",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Create component test suite for dashboard",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-019",
+        "d-020",
+        "d-021"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-031",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Design the decision detail panel with inline editing",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-019",
+        "d-017",
+        "d-020"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-032",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Implement optimistic updates for decision mutations",
+      "ground_truth_relevant": [
+        "d-006",
+        "d-016",
+        "d-018",
+        "d-020",
+        "d-047"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-015"
+      ]
+    },
+    {
+      "id": "rr-033",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Build filter and search UI for the decision list",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-017",
+        "d-019",
+        "d-022"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-034",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Add loading states and skeleton screens",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-019",
+        "d-017",
+        "d-022"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-035",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Implement the timeline visualization component",
+      "ground_truth_relevant": [
+        "d-020",
+        "d-016",
+        "d-019",
+        "d-017",
+        "d-018"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-036",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Build the wing relationship graph SVG",
+      "ground_truth_relevant": [
+        "d-020",
+        "d-016",
+        "d-019",
+        "d-017",
+        "d-018"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-037",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Add WebSocket connection status indicator",
+      "ground_truth_relevant": [
+        "d-046",
+        "d-016",
+        "d-034",
+        "d-018",
+        "d-019"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-038",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Implement the project statistics dashboard",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-020",
+        "d-019",
+        "d-017"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-039",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Build the import wizard multi-step form",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-017",
+        "d-018",
+        "d-019"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-040",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Create accessible form components with validation",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-017",
+        "d-032",
+        "d-019",
+        "d-022"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-041",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Implement the playground simulation UI",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-019",
+        "d-020",
+        "d-018",
+        "d-017"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-042",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Add error boundary and fallback components",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-019",
+        "d-021"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-043",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Build the agent detail page with wing tab",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-020",
+        "d-019",
+        "d-017"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-044",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Implement client-side routing with React Router",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-018",
+        "d-019",
+        "d-017",
+        "d-022"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-045",
+      "agent_name": "frontend",
+      "agent_role": "Frontend engineer building the React dashboard with data visualizations",
+      "task": "Design the notification toast system",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-019",
+        "d-017",
+        "d-018",
+        "d-022"
+      ],
+      "ground_truth_irrelevant": [
+        "d-009",
+        "d-010",
+        "d-028"
+      ]
+    },
+    {
+      "id": "rr-046",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Audit the JWT implementation for token leakage risks",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-003",
+        "d-007",
+        "d-005",
+        "d-004"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-047",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review CORS configuration for overly permissive origins",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-036",
+        "d-037",
+        "d-039"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-048",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Assess the multi-tenant isolation strategy",
+      "ground_truth_relevant": [
+        "d-011",
+        "d-008",
+        "d-036"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-049",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Audit API rate limiting for DDoS resilience",
+      "ground_truth_relevant": [
+        "d-004",
+        "d-035",
+        "d-037",
+        "d-038",
+        "d-040"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-050",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review password hashing implementation",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-004",
+        "d-005",
+        "d-035",
+        "d-040"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-051",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Assess audit logging completeness",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-028",
+        "d-036",
+        "d-038"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-052",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review CSP headers for XSS protection",
+      "ground_truth_relevant": [
+        "d-036",
+        "d-037",
+        "d-038",
+        "d-039"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-053",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Audit API key storage and rotation policy",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-038",
+        "d-040",
+        "d-035"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-054",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review WebSocket authentication and authorization",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-002",
+        "d-003",
+        "d-004",
+        "d-005"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-055",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Assess dependency vulnerability exposure",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-004",
+        "d-005",
+        "d-039"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-056",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review the OAuth2 PKCE implementation",
+      "ground_truth_relevant": [
+        "d-002",
+        "d-003",
+        "d-004",
+        "d-037"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-057",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Audit database access patterns for SQL injection",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-011",
+        "d-012",
+        "d-013",
+        "d-038"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-058",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review RBAC permission boundaries",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-036",
+        "d-038",
+        "d-040"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-059",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Assess encryption at rest and in transit",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-037",
+        "d-039",
+        "d-040"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-060",
+      "agent_name": "security",
+      "agent_role": "Security auditor reviewing authentication, access control, and data protection",
+      "task": "Review CI/CD pipeline for secret leakage",
+      "ground_truth_relevant": [
+        "d-003",
+        "d-004",
+        "d-026",
+        "d-038"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-049"
+      ]
+    },
+    {
+      "id": "rr-061",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Set up the production Docker deployment",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-025",
+        "d-026",
+        "d-027"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-062",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Configure the CI/CD pipeline for automated testing",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-025",
+        "d-026",
+        "d-049"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-063",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Set up database connection pooling in production",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-010",
+        "d-013",
+        "d-015"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-064",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Configure Cloudflare DNS and proxy settings",
+      "ground_truth_relevant": [
+        "d-010",
+        "d-024",
+        "d-025",
+        "d-026",
+        "d-027"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-065",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Set up structured logging and monitoring",
+      "ground_truth_relevant": [
+        "d-028",
+        "d-029",
+        "d-024",
+        "d-025",
+        "d-026"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-066",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Configure Nginx reverse proxy rules",
+      "ground_truth_relevant": [
+        "d-010",
+        "d-023",
+        "d-024",
+        "d-025",
+        "d-027"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-067",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Plan database scaling and partitioning strategy",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-010",
+        "d-011",
+        "d-012",
+        "d-015"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-068",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Set up SSL certificate auto-renewal",
+      "ground_truth_relevant": [
+        "d-025",
+        "d-027",
+        "d-024",
+        "d-023",
+        "d-026"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-069",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Configure Docker health checks and restart policies",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-029",
+        "d-024",
+        "d-025",
+        "d-028"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-070",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Set up GitHub Actions caching for faster builds",
+      "ground_truth_relevant": [
+        "d-010",
+        "d-015",
+        "d-023",
+        "d-026",
+        "d-049"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-071",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Plan disaster recovery and backup strategy",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-025",
+        "d-027"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-072",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Configure environment variable management",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-025",
+        "d-026"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-073",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Set up staging environment mirroring production",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-026",
+        "d-025",
+        "d-027"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-074",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Optimize Docker image sizes for faster deploys",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-026",
+        "d-025"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-075",
+      "agent_name": "devops",
+      "agent_role": "DevOps engineer managing infrastructure, CI/CD, and deployment",
+      "task": "Configure log rotation and retention policies",
+      "ground_truth_relevant": [
+        "d-028",
+        "d-025",
+        "d-023",
+        "d-029"
+      ],
+      "ground_truth_irrelevant": [
+        "d-016",
+        "d-020",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-076",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Set up the integration test framework",
+      "ground_truth_relevant": [
+        "d-041",
+        "d-043",
+        "d-042",
+        "d-044",
+        "d-021"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-077",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Write tests for the authentication flow",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-002",
+        "d-041"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-078",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Achieve 80% coverage on the core package",
+      "ground_truth_relevant": [
+        "d-042",
+        "d-041",
+        "d-043",
+        "d-048",
+        "d-044"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-079",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Set up snapshot testing for API responses",
+      "ground_truth_relevant": [
+        "d-044",
+        "d-041",
+        "d-043",
+        "d-032",
+        "d-031"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-080",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Write component tests for dashboard",
+      "ground_truth_relevant": [
+        "d-021",
+        "d-041",
+        "d-016",
+        "d-043",
+        "d-042"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-010"
+      ]
+    },
+    {
+      "id": "rr-081",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Test database migration rollback procedures",
+      "ground_truth_relevant": [
+        "d-013",
+        "d-043",
+        "d-041",
+        "d-009",
+        "d-042"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-082",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Write tests for the contradiction detector",
+      "ground_truth_relevant": [
+        "d-041",
+        "d-043",
+        "d-042",
+        "d-044"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-083",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Set up CI test parallelization",
+      "ground_truth_relevant": [
+        "d-026",
+        "d-041",
+        "d-042",
+        "d-043",
+        "d-044"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-084",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Test WebSocket reconnection and fallback",
+      "ground_truth_relevant": [
+        "d-041",
+        "d-034",
+        "d-045",
+        "d-043",
+        "d-021"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-085",
+      "agent_name": "testing",
+      "agent_role": "QA engineer ensuring test coverage and quality",
+      "task": "Write load tests for the compile endpoint",
+      "ground_truth_relevant": [
+        "d-032",
+        "d-041",
+        "d-042",
+        "d-043",
+        "d-044"
+      ],
+      "ground_truth_irrelevant": [
+        "d-024",
+        "d-027",
+        "d-019"
+      ]
+    },
+    {
+      "id": "rr-086",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Review current sprint decisions across all agents",
+      "ground_truth_relevant": [
+        "d-048",
+        "d-049",
+        "d-038",
+        "d-050"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-087",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Assess which agent should handle the auth refactor",
+      "ground_truth_relevant": [
+        "d-001",
+        "d-002",
+        "d-003",
+        "d-004",
+        "d-005",
+        "d-008"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-088",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Coordinate database and API changes for new feature",
+      "ground_truth_relevant": [
+        "d-009",
+        "d-011",
+        "d-012",
+        "d-014",
+        "d-030"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-089",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Review infrastructure readiness for production launch",
+      "ground_truth_relevant": [
+        "d-023",
+        "d-024",
+        "d-025",
+        "d-026",
+        "d-027",
+        "d-029"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-090",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Identify conflicting decisions between frontend and backend",
+      "ground_truth_relevant": [
+        "d-016",
+        "d-017",
+        "d-018",
+        "d-019",
+        "d-030"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-091",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Plan the security audit task assignments",
+      "ground_truth_relevant": [
+        "d-036",
+        "d-037",
+        "d-038",
+        "d-039",
+        "d-040"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-092",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Assess test coverage gaps across packages",
+      "ground_truth_relevant": [
+        "d-041",
+        "d-042",
+        "d-043",
+        "d-044",
+        "d-021",
+        "d-048"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-093",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Coordinate the multi-tenant implementation across teams",
+      "ground_truth_relevant": [
+        "d-008",
+        "d-011",
+        "d-025",
+        "d-036"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-094",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Review all architecture decisions for consistency",
+      "ground_truth_relevant": [
+        "d-038",
+        "d-048",
+        "d-049",
+        "d-041",
+        "d-028"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-095",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Plan the next sprint based on current decision landscape",
+      "ground_truth_relevant": [
+        "d-038",
+        "d-014"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-096",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Identify stale decisions that need updating",
+      "ground_truth_relevant": [
+        "d-038"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-097",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Coordinate WebSocket and collaboration feature rollout",
+      "ground_truth_relevant": [
+        "d-034",
+        "d-045",
+        "d-046",
+        "d-047"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-010"
+      ]
+    },
+    {
+      "id": "rr-098",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Review deployment pipeline changes with devops",
+      "ground_truth_relevant": [
+        "d-024",
+        "d-025",
+        "d-026",
+        "d-027",
+        "d-028"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-099",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Assess the impact of switching to new ORM",
+      "ground_truth_relevant": [
+        "d-012",
+        "d-010"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    },
+    {
+      "id": "rr-100",
+      "agent_name": "orchestrator",
+      "agent_role": "Orchestrator agent coordinating multi-agent task assignment and progress",
+      "task": "Plan security hardening tasks for all teams",
+      "ground_truth_relevant": [
+        "d-036",
+        "d-037",
+        "d-038",
+        "d-039",
+        "d-040",
+        "d-035"
+      ],
+      "ground_truth_irrelevant": [
+        "d-050",
+        "d-022",
+        "d-047"
+      ]
+    }
+  ]
+}
