@@ -183,13 +183,39 @@ export function agentListKey(projectId: string): string {
 
 /**
  * Invalidate all cache entries related to a project's decisions.
- * Called on: decision create, update, supersede, revert.
+ * Called on: decision create, update, supersede, revert, outcome record.
+ *
+ * Invalidates BOTH caches:
+ *   (a) the key/value store (Redis or in-memory fallback) — compile/stats/agents
+ *   (b) the database-backed ``context_cache`` table that holds the actual
+ *       compiled ContextPackage served by /api/compile. Before this fix the
+ *       key/value layer was evicted but ``context_cache`` rows (TTL 1h) were
+ *       left intact, so a fresh outcome signal could not take effect on the
+ *       next compile until the row expired. That silently defeated the
+ *       hermes reaction → re-rank loop.
  */
 export async function invalidateDecisionCaches(projectId: string): Promise<void> {
+  const { getDb } = await import('@hipp0/core/db/index.js');
+  const db = getDb();
   await Promise.all([
     cache.invalidatePrefix(`compile:${projectId}`),
     cache.invalidatePrefix(`stats:${projectId}`),
     cache.invalidatePrefix(`agents:${projectId}`),
+    // Evict the database-backed compile cache for every agent in this project.
+    // One DELETE is cheaper than per-agent round trips and matches the
+    // broadcast semantics callers already expect.
+    db.query(
+      `DELETE FROM context_cache
+       WHERE agent_id IN (SELECT id FROM agents WHERE project_id = ?)`,
+      [projectId],
+    ).catch((err: unknown) => {
+      console.warn(
+        '[hipp0:cache] context_cache eviction failed for project',
+        projectId,
+        ':',
+        (err as Error).message,
+      );
+    }),
   ]);
 }
 
