@@ -296,14 +296,21 @@ export async function runDailyReflection(
 
   // 4. What-if analysis on lowest-performing decisions (lightweight — count candidates)
   try {
+    // Source of truth: the Phase-14 decision_outcome_stats view, which is
+    // sourced from decision_outcomes (migration 062 / sqlite-040). The
+    // legacy decisions.outcome_success_rate/outcome_count columns are
+    // scheduled for removal via migration 060 and this code path is one
+    // of its preconditions — do not reintroduce reads of those columns.
     const lowPerforming = await db.query<Record<string, unknown>>(
-      `SELECT id FROM decisions
-       WHERE project_id = ?
-         AND status = 'active'
-         AND outcome_count >= 3
-         AND outcome_success_rate IS NOT NULL
-         AND outcome_success_rate < 0.5
-       ORDER BY outcome_success_rate ASC
+      `SELECT d.id
+       FROM decisions d
+       JOIN decision_outcome_stats v
+         ON v.decision_id = d.id AND v.project_id = d.project_id
+       WHERE d.project_id = ?
+         AND d.status = 'active'
+         AND v.total_count >= 3
+         AND v.success_rate < 0.5
+       ORDER BY v.success_rate ASC
        LIMIT 10`,
       [projectId],
     );

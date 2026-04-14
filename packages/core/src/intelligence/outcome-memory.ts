@@ -151,31 +151,42 @@ export async function getUnifiedOutcomeStats(
 
 export async function recomputeOutcomeAggregates(decisionId: string): Promise<void> {
   const db = getDb();
-  // Atomic read-and-write: a single UPDATE sourcing the aggregates from a
-  // correlated subquery against decision_outcomes. The previous impl did
-  //   stats = SELECT … ; UPDATE decisions SET … = stats.
-  // That lost updates under concurrent recordDecisionOutcome calls: two
-  // writers would each read the stale pre-insert aggregate, each write
-  // their own near-identical row, and only the last writer's count would
-  // survive. Folding both into one statement makes the update consistent
-  // with whatever rows exist in decision_outcomes at commit time.
+  // Atomic read-and-write into the legacy columns, kept alive for the
+  // Phase-14 deprecation window. Once migration 060 drops
+  // decisions.outcome_success_rate / outcome_count, these columns won't
+  // exist and this UPDATE will fail. We detect that case (unknown-column
+  // error) and no-op, because decision_outcome_stats is the canonical
+  // source post-060 and no further writing is needed. Callers should
+  // treat this function as best-effort: it keeps the legacy column in
+  // sync during the monitoring window, nothing more.
   const now = db.dialect === 'sqlite' ? "datetime('now')" : 'NOW()';
-  await db.query(
-    `UPDATE decisions
-     SET
-       outcome_count = COALESCE((
-         SELECT COUNT(*) FROM decision_outcomes WHERE decision_id = ?
-       ), 0),
-       outcome_success_rate = COALESCE((
-         SELECT
-           CAST(SUM(CASE WHEN outcome_type = 'success' THEN 1 ELSE 0 END) AS ${db.dialect === 'sqlite' ? 'REAL' : 'FLOAT'})
-             / NULLIF(COUNT(*), 0)
-         FROM decision_outcomes WHERE decision_id = ?
-       ), 0),
-       updated_at = ${now}
-     WHERE id = ?`,
-    [decisionId, decisionId, decisionId],
-  );
+  try {
+    await db.query(
+      `UPDATE decisions
+       SET
+         outcome_count = COALESCE((
+           SELECT COUNT(*) FROM decision_outcomes WHERE decision_id = ?
+         ), 0),
+         outcome_success_rate = COALESCE((
+           SELECT
+             CAST(SUM(CASE WHEN outcome_type = 'success' THEN 1 ELSE 0 END) AS ${db.dialect === 'sqlite' ? 'REAL' : 'FLOAT'})
+               / NULLIF(COUNT(*), 0)
+           FROM decision_outcomes WHERE decision_id = ?
+         ), 0),
+         updated_at = ${now}
+       WHERE id = ?`,
+      [decisionId, decisionId, decisionId],
+    );
+  } catch (err) {
+    const msg = (err as Error).message ?? '';
+    // Postgres: 'column "outcome_success_rate" of relation "decisions" does not exist'
+    // SQLite:   'no such column: outcome_success_rate'
+    if (/outcome_success_rate|outcome_count/.test(msg) && /(no such column|does not exist)/.test(msg)) {
+      // Post-060: the legacy columns are gone. Nothing to keep in sync.
+      return;
+    }
+    throw err;
+  }
 }
 
 /**

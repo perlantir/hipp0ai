@@ -191,13 +191,20 @@ export async function predictDecisionImpact(
 ): Promise<ImpactPrediction> {
   const db = getDb();
 
-  // 1. Fetch all decisions in the project that have outcome data
+  // 1. Fetch all decisions in the project that have outcome data.
+  // Sourced from decision_outcome_stats (Phase 14, migration 062/sqlite-040)
+  // — the legacy decisions.outcome_success_rate/outcome_count columns are
+  // being removed via migration 060. Use view values aliased to the
+  // historical column names so downstream scoring code doesn't change.
   const result = await db.query<Record<string, unknown>>(
     `SELECT d.id, d.tags, d.domain, d.confidence, d.affects, d.made_by,
-            d.outcome_success_rate, d.outcome_count
+            v.success_rate AS outcome_success_rate,
+            v.total_count  AS outcome_count
      FROM decisions d
+     JOIN decision_outcome_stats v
+       ON v.decision_id = d.id AND v.project_id = d.project_id
      WHERE d.project_id = ?
-       AND d.outcome_count > 0
+       AND v.total_count > 0
        AND d.status = 'active'`,
     [projectId],
   );
