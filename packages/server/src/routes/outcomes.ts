@@ -548,6 +548,109 @@ export function registerOutcomeRoutes(app: Hono): void {
     const result = await applyCrossAgentLearning(projectId);
     return c.json(result);
   });
+
+  // --------------------------------------------------------------------
+  // Reset / reconsider outcome trust for a single decision.
+  //
+  // Surfaces the "forget" operation the Phase-14 review called out: negative
+  // trust only accumulates; there was no user-facing way to clear a decision
+  // that had been unfairly dampened (one accidental thumbs-down under
+  // MIN_OUTCOMES_FOR_EFFECT=1 used to be permanent; even with the 90-day
+  // window and MIN=2 there are legitimate reasons to reset — e.g. the
+  // decision was rewritten, the project changed direction, or an automated
+  // signal misfired).
+  //
+  // Semantics: deletes every decision_outcomes row for the decision, deletes
+  // every hermes_outcomes row whose snippet_ids_json contains the decision
+  // id (since those are the raw reactions that fed attribution), zeros the
+  // legacy decisions.outcome_* columns (no-op post-060), and invalidates
+  // compile caches for the project so the next compile re-scores from a
+  // clean slate. Does NOT delete the decision itself.
+  //
+  // Requires project access. Audit-logged. Returns a count of rows deleted
+  // from each table so callers/tests can verify the reset landed.
+  // --------------------------------------------------------------------
+  app.post('/api/decisions/:id/outcomes/reset', async (c) => {
+    const decisionId = requireUUID(c.req.param('id'), 'decisionId');
+    await requireDecisionProjectAccess(c, decisionId);
+
+    const db = getDb();
+    const { rows: projRows } = await db.query<{ project_id: string }>(
+      'SELECT project_id FROM decisions WHERE id = ?',
+      [decisionId],
+    );
+    if (projRows.length === 0) throw new NotFoundError('Decision', decisionId);
+    const projectId = projRows[0].project_id;
+
+    // 1. decision_outcomes — the attribution audit trail. These feed the
+    //    decision_outcome_stats view directly, so clearing them wipes the
+    //    view's view of this decision (90-day window already filters old
+    //    rows, but operators may want immediate clearance).
+    const delDecOutcomes = await db.query<Record<string, unknown>>(
+      'DELETE FROM decision_outcomes WHERE decision_id = ?',
+      [decisionId],
+    );
+
+    // 2. hermes_outcomes — raw per-turn reactions. We can't use a JSON
+    //    containment check that's portable across dialects, so we fetch
+    //    candidate rows (project-scoped) and filter in app code. The
+    //    volume is small (90 days * typical reactions/day) and this
+    //    endpoint is not on a hot path.
+    const candidateRows = await db.query<Record<string, unknown>>(
+      `SELECT id, snippet_ids_json FROM hermes_outcomes WHERE project_id = ?`,
+      [projectId],
+    );
+    const toDelete: string[] = [];
+    for (const row of candidateRows.rows) {
+      const raw = row.snippet_ids_json;
+      let ids: unknown[] = [];
+      if (typeof raw === 'string') {
+        try { const parsed = JSON.parse(raw); if (Array.isArray(parsed)) ids = parsed; } catch { /* skip */ }
+      } else if (Array.isArray(raw)) {
+        ids = raw as unknown[];
+      }
+      if (ids.some((v) => typeof v === 'string' && v === decisionId)) {
+        toDelete.push(String(row.id));
+      }
+    }
+    let hermesDeletedCount = 0;
+    if (toDelete.length > 0) {
+      const placeholders = toDelete.map(() => '?').join(',');
+      const res = await db.query<Record<string, unknown>>(
+        `DELETE FROM hermes_outcomes WHERE id IN (${placeholders})`,
+        toDelete,
+      );
+      hermesDeletedCount = Number((res as { rowCount?: number }).rowCount ?? toDelete.length);
+    }
+
+    // 3. Zero the legacy columns. Post-060 the columns don't exist and
+    //    recomputeOutcomeAggregates already no-ops on the resulting error;
+    //    reuse it here so behaviour is consistent across the window.
+    const { recomputeOutcomeAggregates } = await import(
+      '@hipp0/core/intelligence/outcome-memory.js'
+    );
+    await recomputeOutcomeAggregates(decisionId);
+
+    // 4. Invalidate compile caches so the next /api/compile re-scores.
+    try {
+      await invalidateDecisionCaches(projectId);
+    } catch (err) {
+      console.warn('[hipp0:outcomes-reset] cache invalidation failed:', (err as Error).message);
+    }
+
+    logAudit('decision_outcomes_reset', projectId, {
+      decision_id: decisionId,
+      decision_outcomes_deleted: Number((delDecOutcomes as { rowCount?: number }).rowCount ?? 0),
+      hermes_outcomes_deleted: hermesDeletedCount,
+    });
+
+    return c.json({
+      decision_id: decisionId,
+      decision_outcomes_deleted: Number((delDecOutcomes as { rowCount?: number }).rowCount ?? 0),
+      hermes_outcomes_deleted: hermesDeletedCount,
+      reset_at: new Date().toISOString(),
+    });
+  });
 }
 
 async function requireDecisionProjectAccess(

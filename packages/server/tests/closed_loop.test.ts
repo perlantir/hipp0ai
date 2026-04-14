@@ -377,7 +377,54 @@ describe('Closed loop — hermes_outcomes + attribution boosts D1 combined_score
     expect(Number((after.rows[0] as { n: number }).n)).toBe(0);
   });
 
-  it('6. attributeOutcomeToDecisions intersects with snippet_ids when provided', async () => {
+  it('6. POST /api/decisions/:id/outcomes/reset clears trust for a decision', async () => {
+    // Verify the reset-trust UX endpoint: by this point in the suite D1 has
+    // many decision_outcomes rows (from step 3's biasing loop) and a batch
+    // of hermes_outcomes rows (from step 2b's seeding). Reset wipes both,
+    // zeros the legacy column, and invalidates compile caches.
+    const beforeDec = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM decision_outcomes WHERE decision_id = ?`,
+      [D1],
+    );
+    expect(Number((beforeDec.rows[0] as { n: number }).n)).toBeGreaterThan(0);
+    const beforeHermes = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM hermes_outcomes
+       WHERE project_id = ? AND snippet_ids_json LIKE ?`,
+      [PROJECT_ID, '%' + D1 + '%'],
+    );
+    expect(Number((beforeHermes.rows[0] as { n: number }).n)).toBeGreaterThan(0);
+
+    const res = await req('POST', `/api/decisions/${D1}/outcomes/reset`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      decision_id: string;
+      decision_outcomes_deleted: number;
+      hermes_outcomes_deleted: number;
+    };
+    expect(body.decision_id).toBe(D1);
+    expect(body.decision_outcomes_deleted).toBeGreaterThan(0);
+    expect(body.hermes_outcomes_deleted).toBeGreaterThan(0);
+
+    const afterDec = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM decision_outcomes WHERE decision_id = ?`,
+      [D1],
+    );
+    expect(Number((afterDec.rows[0] as { n: number }).n)).toBe(0);
+    const afterHermes = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM hermes_outcomes
+       WHERE project_id = ? AND snippet_ids_json LIKE ?`,
+      [PROJECT_ID, '%' + D1 + '%'],
+    );
+    expect(Number((afterHermes.rows[0] as { n: number }).n)).toBe(0);
+
+    const colRow = await db.query<Record<string, unknown>>(
+      `SELECT outcome_count, outcome_success_rate FROM decisions WHERE id = ?`,
+      [D1],
+    );
+    expect(Number(colRow.rows[0].outcome_count)).toBe(0);
+  });
+
+  it('7. attributeOutcomeToDecisions intersects with snippet_ids when provided', async () => {
     // Regression guard for the attribution-intersection fix: a thumbs-up
     // on a single snippet must NOT reward every decision in the cited
     // compile_history — only the decisions whose ids appear in
