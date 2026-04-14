@@ -251,13 +251,21 @@ export function registerStatsRoutes(app: Hono): void {
     const projectId = requireUUID(c.req.param('id'), 'projectId');
     await requireProjectAccess(c, projectId);
 
+    // Cap the graph payload so a project with 10k+ decisions can't blow out
+    // the response size or the dashboard renderer. Callers needing the full
+    // graph should paginate via /api/projects/:id/decisions.
+    const GRAPH_NODE_LIMIT = 2000;
     const [decisionsResult, edgesResult] = await Promise.all([
-      db.query('SELECT * FROM decisions WHERE project_id = ? ORDER BY created_at ASC', [projectId]),
+      db.query(
+        'SELECT * FROM decisions WHERE project_id = ? ORDER BY created_at ASC LIMIT ?',
+        [projectId, GRAPH_NODE_LIMIT],
+      ),
       db.query(
         `SELECT e.* FROM decision_edges e
          JOIN decisions d ON d.id = e.source_id
-         WHERE d.project_id = ?`,
-        [projectId],
+         WHERE d.project_id = ?
+         LIMIT ?`,
+        [projectId, GRAPH_NODE_LIMIT * 5],
       ),
     ]);
 

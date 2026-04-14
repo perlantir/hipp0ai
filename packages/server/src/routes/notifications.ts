@@ -119,7 +119,7 @@ export function registerNotificationRoutes(app: Hono): void {
     const db = getDb();
     const agentId = requireUUID(c.req.param('id'), 'agentId');
     const result = await db.query(
-      'SELECT * FROM subscriptions WHERE agent_id = ? ORDER BY created_at ASC',
+      'SELECT * FROM subscriptions WHERE agent_id = ? ORDER BY created_at ASC LIMIT 500',
       [agentId],
     );
     return c.json(result.rows.map((r) => parseSubscription(r as Record<string, unknown>)));
