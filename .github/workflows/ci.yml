@@ -59,6 +59,11 @@ jobs:
       - name: Run unit tests
         run: pnpm test
 
+      - name: Run closed-loop integration test (Phase 10 gate)
+        # Dedicated step so a closed-loop regression fails with a clear
+        # signal even if the surrounding unit suite also fails.
+        run: pnpm --filter @hipp0/server test tests/closed_loop.test.ts
+
       - name: Run integration validation
         env:
           DATABASE_URL: postgresql://hipp0:hipp0_test@localhost:5432/hipp0_test
