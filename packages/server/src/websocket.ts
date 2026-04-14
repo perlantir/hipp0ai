@@ -78,19 +78,45 @@ export function initWebSocket(): void {
   console.warn('[hipp0] WebSocket server ready on /ws (noServer mode)');
 }
 
+// Drop payloads for clients whose outbound buffer exceeds this size — the
+// slow consumer is starving the event loop and would grow the buffer
+// unbounded if we kept enqueueing. 1 MiB is generous for typical
+// dashboard events (a few KB each).
+const WS_BACKPRESSURE_DROP_BYTES = 1024 * 1024;
+
 export function broadcast(event: string, data: unknown, tenantId?: string): void {
   if (!wss) return;
 
   const message = JSON.stringify({ event, data, timestamp: new Date().toISOString() });
 
+  // Collect eligible clients first, then fan out with Promise.all. The
+  // previous sequential loop blocked per-client on socket writes; with
+  // Promise.all, Node's internal write scheduler can parallelize across
+  // TCP streams and a slow peer no longer holds up the rest.
+  const sends: Promise<void>[] = [];
   for (const client of wss.clients) {
-    if (client.readyState === WebSocket.OPEN) {
-      // If tenantId specified, only broadcast to clients in that tenant
-      if (tenantId) {
-        const clientTenant = clientTenants.get(client);
-        if (clientTenant !== tenantId) continue;
-      }
-      client.send(message);
+    if (client.readyState !== WebSocket.OPEN) continue;
+    if (tenantId) {
+      const clientTenant = clientTenants.get(client);
+      if (clientTenant !== tenantId) continue;
     }
+    if (client.bufferedAmount > WS_BACKPRESSURE_DROP_BYTES) {
+      console.warn(
+        `[hipp0/ws] Dropping broadcast for slow client — bufferedAmount=${client.bufferedAmount} event=${event}`,
+      );
+      continue;
+    }
+    sends.push(
+      new Promise<void>((resolve) => {
+        client.send(message, (err) => {
+          if (err) console.warn('[hipp0/ws] send error:', err.message);
+          resolve();
+        });
+      }),
+    );
   }
+
+  // Fire-and-forget — broadcast callers don't await. Any per-send errors
+  // are already logged inside the Promise wrapper.
+  void Promise.all(sends);
 }
