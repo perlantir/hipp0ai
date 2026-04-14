@@ -50,6 +50,13 @@ const ZERO_VECTOR: number[] = new Array(1536).fill(0) as number[];
 // the task description; entries expire after TASK_EMBEDDING_TTL_MS.
 // Never caches zero-vector fallbacks so a transient API failure does
 // not poison future compiles.
+//
+// NOTE: Intentionally SEPARATE from the Redis `compile:` cache in
+// packages/server/src/cache/redis.ts. Compile-result entries are
+// project/agent/task-scoped and get evicted on any decision mutation
+// (see invalidateDecisionCaches). Task embeddings depend only on the
+// task description and must outlive compile-result evictions, otherwise
+// every decision write would force redundant embeddings API calls.
 const TASK_EMBEDDING_TTL_MS = 10 * 60_000;   // 10 minutes
 const TASK_EMBEDDING_MAX_ENTRIES = 500;
 const taskEmbeddingCache = new Map<string, { vec: number[]; expiresAt: number }>();
