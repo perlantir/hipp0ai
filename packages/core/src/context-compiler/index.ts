@@ -1077,16 +1077,6 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   // SINGLE OUTPUT FUNNEL: filter + dedupe + sort + cap
   // Every code path goes through finalizeResults — no exceptions.
-  // Log embedding / semantic health for this compile
-  const semanticHits = allScored.filter((d) => ((d.scoring_breakdown as unknown) as Record<string, unknown>)?.semantic_similarity as number > 0).length;
-  if (allScored.length > 0) {
-    // One-time debug: log embedding types for first decision
-    const first = allScored[0];
-    const rawType = typeof first.embedding;
-    const isArr = Array.isArray(first.embedding);
-    const embLen = isArr ? (first.embedding as number[]).length : (typeof first.embedding === 'string' ? (first.embedding as string).length : 0);
-    console.warn(`[hipp0/embeddings] first_decision_embedding: type=${rawType} isArray=${isArr} len=${embLen} semanticHits=${semanticHits}/${allScored.length}`);
-  }
   const packedDecisions = finalizeResults(allScored, agent_name, project_id, startMs);
 
   // Update last_referenced_at + reference_count for included decisions
