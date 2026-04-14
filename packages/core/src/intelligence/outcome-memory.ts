@@ -126,7 +126,6 @@ export async function getUnifiedOutcomeStats(
   decisionId: string,
 ): Promise<{ success_rate: number; total_count: number } | null> {
   const db = getDb();
-  if (db.dialect !== 'postgres') return null;
   try {
     const result = await db.query<{ success_rate: string | number; total_count: string | number }>(
       `SELECT success_rate, total_count FROM decision_outcome_stats WHERE decision_id = ?`,

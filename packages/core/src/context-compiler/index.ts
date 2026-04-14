@@ -398,20 +398,21 @@ function generateExplanation(
 /**
  * Load per-decision unified outcome stats for a whole project.
  *
- * Reads from the Phase 14 ``decision_outcome_stats`` view when available —
- * this is the canonical source once migration 058 is applied. Returns an
- * empty map on SQLite (view is Postgres-only) and on any query error; in
- * both cases compile falls back to the legacy ``decisions.outcome_success_rate``
- * column, which is the pre-Phase-14 behaviour. The single-row helper
- * ``getUnifiedOutcomeStats`` exists for one-off lookups; compile needs
- * batch semantics so we do one scan per call here.
+ * Reads from the Phase 14 ``decision_outcome_stats`` view. The view is
+ * defined on both dialects: supabase/migrations/058+061 for Postgres,
+ * sqlite/039 for SQLite. Both apply a 90-day window and raw (non-Laplace)
+ * success rate so the legacy column and the view produce the same number
+ * for the same input.
+ *
+ * On any query error (view missing on a pre-058/039 database, bad rows,
+ * transient failure) returns an empty map and the caller falls back to
+ * the legacy decisions.outcome_success_rate column. Never propagates.
  */
 async function loadUnifiedOutcomeStats(
   projectId: string,
 ): Promise<Map<string, { success_rate: number; total_count: number }>> {
   const map = new Map<string, { success_rate: number; total_count: number }>();
   const db = getDb();
-  if (db.dialect !== 'postgres') return map;
   try {
     const result = await db.query<{
       decision_id: string;
