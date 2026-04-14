@@ -1,10 +1,10 @@
 /**
  * Unit test for the Phase 14 unified outcome view helper.
  *
- * The production path targets a Postgres view created in migration 058.
- * Here we stub the DB layer so the helper's contract (SQLite → null,
- * missing row → null, parsed row → {rate, total}, thrown error → null)
- * is pinned without needing a live Postgres.
+ * The production view is defined on both dialects (supabase/058+061 for
+ * Postgres, sqlite/039 for SQLite). Here we stub the DB layer so the
+ * helper's contract (missing row → null, parsed row → {rate, total},
+ * thrown error → null) is pinned without needing a live database.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -27,11 +27,16 @@ beforeEach(() => {
 });
 
 describe('getUnifiedOutcomeStats', () => {
-  it('returns null when dialect is sqlite (view is pg-only)', async () => {
+  it('queries the view on SQLite now that sqlite/039 defines it', async () => {
+    // Regression guard: the helper used to short-circuit on SQLite with
+    // `if (dialect !== 'postgres') return null`, which made the Phase 14
+    // code path unreachable in CI. The view is now portable, so the query
+    // must run on both dialects.
     mockDialect.dialect = 'sqlite';
+    mockQuery.mockResolvedValueOnce({ rows: [{ success_rate: 0.8, total_count: 5 }] });
     const result = await getUnifiedOutcomeStats('dec-1');
-    expect(result).toBeNull();
-    expect(mockQuery).not.toHaveBeenCalled();
+    expect(result).toEqual({ success_rate: 0.8, total_count: 5 });
+    expect(mockQuery).toHaveBeenCalledTimes(1);
   });
 
   it('returns null when the view has no row for the decision', async () => {

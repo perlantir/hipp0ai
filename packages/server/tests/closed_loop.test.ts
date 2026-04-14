@@ -8,14 +8,19 @@
 //   2. First /api/compile call establishes a baseline ordering.
 //   3. hermes_outcomes is seeded with a positive signal referencing D1
 //      (this is what Hipp0MemoryProvider.record_outcome() writes over the
-//      wire — see HIPP0_REQUESTS.md §6 and migration 037).
+//      wire — see HIPP0_REQUESTS.md §6 and migration 037). With sqlite/039
+//      the decision_outcome_stats view is now defined on SQLite too, so
+//      the hermes_outcomes rows feed the view-backed scoring path in the
+//      exact same way they would on Postgres. Before the view was
+//      SQLite-compatible this code path was unreachable in CI.
 //   4. attributeOutcomeToDecisions() is invoked directly against the
 //      compile_history row from step 2, which writes decision_outcomes rows
 //      and updates outcome_success_rate / outcome_count on the decisions.
 //   5. Second /api/compile call is made with the same task.  D1's
 //      combined_score must be strictly higher than on the first call
-//      (trust boost from hermes_outcomes + outcome multiplier from the
-//      decision_outcomes attribution), and D1 must outrank D2.
+//      via the single outcome_multiplier (the separate hermes trust
+//      multiplier was removed — one reaction, one multiplier), and D1
+//      must outrank D2.
 //
 // Uses a real in-memory SQLite DB — same pattern as hermes-e2e.test.ts.
 // Only the distillery is stubbed (no network).
@@ -296,11 +301,19 @@ describe('Closed loop — hermes_outcomes + attribution boosts D1 combined_score
     );
     expect(secondD1!.scoring_breakdown.outcome_multiplier).toBeGreaterThan(1.0);
 
-    // Core assertion #2: D1's pre-normalization combined score went up —
-    // this bakes in BOTH the outcome_multiplier boost AND the hermes trust
-    // multiplier from loadHermesTrustMultipliers() (the latter is applied
-    // to finalScore but not exposed as its own breakdown field).
+    // Core assertion #2: D1's pre-normalization combined score went up.
+    // With the double-multiply fix, this now reflects the single
+    // outcome_multiplier path only. The view-backed and column-backed
+    // paths should produce equivalent results since migration 061 aligned
+    // their semantics (raw rate, 90-day window).
     expect(secondD1!.scoring_breakdown.combined).toBeGreaterThan(firstRaw[D1]);
+
+    // Core assertion #2b: outcome_source attribution is populated for D1 —
+    // either 'view' (hermes_outcomes via decision_outcome_stats on SQLite
+    // thanks to migration sqlite/039) or 'column' (legacy path). Must not
+    // be 'none' since we seeded well over MIN_OUTCOMES_FOR_EFFECT rows.
+    expect(secondD1!.scoring_breakdown.outcome_source).toBeDefined();
+    expect(['view', 'column']).toContain(secondD1!.scoring_breakdown.outcome_source);
 
     // Core assertion #3: D2 is unaffected at best, penalized at worst — we
     // seeded no positive outcomes for D2, and attributeOutcomeToDecisions
@@ -319,5 +332,82 @@ describe('Closed loop — hermes_outcomes + attribution boosts D1 combined_score
     const d1Idx = body.decisions.findIndex((d) => d.id === D1);
     const d2Idx = body.decisions.findIndex((d) => d.id === D2);
     expect(d1Idx).toBeLessThan(d2Idx);
+  });
+
+  it('5. invalidateDecisionCaches evicts context_cache rows (not just Redis)', async () => {
+    // Regression guard for the Phase 1 bug: before the fix,
+    // invalidateDecisionCaches only cleared Redis/in-memory key/value
+    // entries with the compile:/stats:/agents: prefixes. The actual
+    // compile cache lives in the context_cache table (keyed on
+    // agent_id+task_hash, 1h TTL) and nothing on the compile read path
+    // touched Redis — so a hermes reaction could not re-rank until the
+    // row naturally expired. This test seeds a context_cache row and
+    // verifies invalidateDecisionCaches() removes it.
+    const fakeCacheId = crypto.randomUUID();
+    await db.query(
+      `INSERT INTO context_cache
+         (id, agent_id, task_hash, compiled_context,
+          decision_ids_included, artifact_ids_included, token_count,
+          compiled_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now', '+1 hour'))`,
+      [
+        fakeCacheId,
+        AGENT_ID,
+        'test-task-hash',
+        JSON.stringify({ decisions: [] }),
+        JSON.stringify([]),
+        JSON.stringify([]),
+        0,
+      ],
+    );
+
+    const before = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM context_cache WHERE id = ?`,
+      [fakeCacheId],
+    );
+    expect(Number((before.rows[0] as { n: number }).n)).toBe(1);
+
+    const { invalidateDecisionCaches } = await import('../src/cache/redis.js');
+    await invalidateDecisionCaches(PROJECT_ID);
+
+    const after = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM context_cache WHERE id = ?`,
+      [fakeCacheId],
+    );
+    expect(Number((after.rows[0] as { n: number }).n)).toBe(0);
+  });
+
+  it('6. attributeOutcomeToDecisions intersects with snippet_ids when provided', async () => {
+    // Regression guard for the attribution-intersection fix: a thumbs-up
+    // on a single snippet must NOT reward every decision in the cited
+    // compile_history — only the decisions whose ids appear in
+    // snippet_ids. The /api/hermes/outcomes route passes the validated
+    // client-sent snippet_ids into attributeOutcomeToDecisions, which
+    // restricts writes to the intersection.
+    const baselineRows = await db.query<Record<string, unknown>>(
+      `SELECT COUNT(*) AS n FROM decision_outcomes WHERE project_id = ? AND notes = ?`,
+      [PROJECT_ID, 'intersection-test'],
+    );
+    expect(Number((baselineRows.rows[0] as { n: number }).n)).toBe(0);
+
+    // Attribute only D1 even though the compile_history referenced both.
+    const n = await attributeOutcomeToDecisions({
+      compile_history_id: firstCompileHistoryId,
+      project_id: PROJECT_ID,
+      agent_id: AGENT_ID,
+      outcome_type: 'success',
+      outcome_score: 0.95,
+      notes: 'intersection-test',
+      snippet_ids: [D1],
+    });
+    expect(n).toBe(1);
+
+    const rows = await db.query<Record<string, unknown>>(
+      `SELECT decision_id FROM decision_outcomes
+       WHERE project_id = ? AND notes = ?`,
+      [PROJECT_ID, 'intersection-test'],
+    );
+    expect(rows.rows).toHaveLength(1);
+    expect(rows.rows[0].decision_id).toBe(D1);
   });
 });
