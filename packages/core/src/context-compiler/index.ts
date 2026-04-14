@@ -32,6 +32,7 @@ import { inferDomainFromTask } from '../hierarchy/classifier.js';
 import { trustMultiplier } from '../intelligence/trust-scorer.js';
 import { outcomeMultiplier } from '../intelligence/outcome-memory.js';
 import { computeWingSources } from '../wings/affinity.js';
+import { withCoreSpan } from '../telemetry.js';
 
 // Embedding helper — imported from decision-graph (generated at runtime).
 // We use a dynamic import shape so the module can be provided at runtime.
@@ -1199,9 +1200,16 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   const agentDomain = persona ? inferDomainFromTask(persona.primaryTags.join(' ')) : null;
   const domainContext = { taskDomain, agentDomain };
 
-  const hermesTrustMultipliers = await loadHermesTrustMultipliers(project_id);
+  const hermesTrustMultipliers = await withCoreSpan(
+    'compile.load_hermes_trust',
+    { project_id },
+    async () => loadHermesTrustMultipliers(project_id),
+  );
 
-  const scored = allDecisions.map((d) => {
+  const scored = await withCoreSpan(
+    'compile.score_decisions',
+    { project_id, agent_name },
+    async () => allDecisions.map((d) => {
     const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description, hermesTrustMultipliers);
     // Tag loading layer
     if (l0Ids.has(d.id)) {
@@ -1212,7 +1220,8 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
       sd.loading_layer = 'L1';
     }
     return sd;
-  });
+  }),
+  );
 
     // Wing-aware affinity boost
   // Orchestrator agents (role "orchestrator") see all wings equally — no bias.
@@ -1255,7 +1264,11 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   const topN = Math.max(25, depth * 5);
   const topDecisions = qualifiedDecisions.slice(0, topN);
 
-  const expanded = await expandGraphContext(topDecisions, depth, allDecisionMap);
+  const expanded = await withCoreSpan(
+    'compile.expand_graph',
+    { project_id, agent_name },
+    async () => expandGraphContext(topDecisions, depth, allDecisionMap),
+  );
 
   const scoredIds = new Set(scored.map((d) => d.id));
   const expandedScored: ScoredDecision[] = expanded
