@@ -358,7 +358,7 @@ export function registerHermesRoutes(app: Hono): void {
   // -----------------------------------------------------------------------
   app.get('/api/hermes/conversations/:session_id/messages', async (c) => {
     const session_id = requireUUID(c.req.param('session_id'), 'session_id');
-    const limit = Math.min(parseInt(c.req.query('limit') ?? '200', 10) || 200, 1000);
+    const limit = Math.min(parseInt(c.req.query('limit') ?? '100', 10) || 100, 1000);
     const offset = parseInt(c.req.query('offset') ?? '0', 10) || 0;
 
     const db = getDb();
@@ -379,6 +379,7 @@ export function registerHermesRoutes(app: Hono): void {
 
     const conversation_id = convRow.id as string;
 
+    // Peek one extra row to derive has_more without a separate COUNT(*).
     const msgResult = await db.query(
       `SELECT id, role, content, tool_calls_json, tool_results_json,
               tokens_in, tokens_out, created_at
@@ -386,10 +387,13 @@ export function registerHermesRoutes(app: Hono): void {
         WHERE conversation_id = ?
         ORDER BY created_at ASC
         LIMIT ? OFFSET ?`,
-      [conversation_id, limit, offset],
+      [conversation_id, limit + 1, offset],
     );
 
-    const messages = msgResult.rows.map((row) => {
+    const has_more = msgResult.rows.length > limit;
+    const pageRows = has_more ? msgResult.rows.slice(0, limit) : msgResult.rows;
+
+    const messages = pageRows.map((row) => {
       const r = row as Record<string, unknown>;
       let tool_calls: unknown = null;
       let tool_results: unknown = null;
@@ -422,6 +426,9 @@ export function registerHermesRoutes(app: Hono): void {
       ended_at: (convRow.ended_at as string | null) ?? null,
       platform: convRow.platform as string,
       messages,
+      limit,
+      offset,
+      has_more,
     });
   });
 
