@@ -703,7 +703,47 @@ async function expandGraphContext(
   const visited = new Set<string>(topDecisions.map((d) => d.id));
   const expansions: ExpandedDecision[] = [];
 
-  // BFS queue: [decisionId, parentScore, depth]
+  if (topDecisions.length === 0 || maxDepth < 1) return expansions;
+
+  // N+1 fix: pre-fetch ALL decision_edges rows touching any seed id in ONE
+  // query, then walk the BFS using in-memory adjacency maps. The previous
+  // impl ran one SELECT per node per BFS level, which was O(seeds * depth)
+  // round-trips — catastrophic over a slow link with 25+ seeds.
+  //
+  // The adjacency map only needs to cover edges whose endpoints land inside
+  // allDecisionMap (expansions filter unknown neighbors anyway), so the
+  // seed-id fetch is sufficient: any neighbor we'd reach at depth d via
+  // a chain of edges must itself appear as the source_id or target_id of
+  // an edge whose OTHER endpoint is a seed — but we need multi-hop. To
+  // support maxDepth > 1 with a single query, fetch all edges for the
+  // entire candidate decision set (allDecisionMap keys), which is already
+  // bounded by the layered fetch above (typically < a few hundred rows).
+  const candidateIds = [...allDecisionMap.keys()];
+  if (candidateIds.length === 0) return expansions;
+
+  const placeholders = candidateIds.map(() => '?').join(', ');
+  const edgeResult = await db.query<Record<string, unknown>>(
+    `SELECT source_id, target_id
+       FROM decision_edges
+      WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`,
+    [...candidateIds, ...candidateIds],
+  );
+
+  // Build bidirectional adjacency: id -> Set of neighbor ids
+  const adjacency = new Map<string, Set<string>>();
+  for (const row of edgeResult.rows) {
+    const src = row['source_id'] as string;
+    const tgt = row['target_id'] as string;
+    if (!src || !tgt) continue;
+    let srcSet = adjacency.get(src);
+    if (!srcSet) { srcSet = new Set(); adjacency.set(src, srcSet); }
+    srcSet.add(tgt);
+    let tgtSet = adjacency.get(tgt);
+    if (!tgtSet) { tgtSet = new Set(); adjacency.set(tgt, tgtSet); }
+    tgtSet.add(src);
+  }
+
+  // BFS using the in-memory map
   const queue: Array<{ id: string; parentScore: number; depth: number }> = topDecisions.map(
     (d) => ({ id: d.id, parentScore: d.combined_score, depth: 1 }),
   );
@@ -714,16 +754,10 @@ async function expandGraphContext(
     const { id, parentScore, depth } = item;
     if (depth > maxDepth) continue;
 
-    const edgeResult = await db.query<Record<string, unknown>>(
-      `SELECT DISTINCT
-         CASE WHEN source_id = ? THEN target_id ELSE source_id END AS neighbor_id
-       FROM decision_edges
-      WHERE source_id = ? OR target_id = ?`,
-      [id, id, id],
-    );
+    const neighbors = adjacency.get(id);
+    if (!neighbors) continue;
 
-    for (const row of edgeResult.rows) {
-      const neighborId = row['neighbor_id'] as string;
+    for (const neighborId of neighbors) {
       if (visited.has(neighborId)) continue;
       visited.add(neighborId);
 
