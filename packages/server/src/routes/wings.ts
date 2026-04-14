@@ -37,6 +37,7 @@ export function registerWingRoutes(app: Hono): void {
 
     const agent = agentResult.rows[0];
     const agentProjectId = agent.project_id as string;
+    await requireProjectAccess(c, agentProjectId);
 
     // Decision count for this wing
     const decisionResult = await db.query<Record<string, unknown>>(
@@ -191,6 +192,7 @@ export function registerWingRoutes(app: Hono): void {
     }
 
     const agent = agentResult.rows[0];
+    await requireProjectAccess(c, agent.project_id as string);
     let wingAffinity = { cross_wing_weights: {} as Record<string, number>, last_recalculated: '', feedback_count: 0 };
     const raw = agent.wing_affinity;
     if (typeof raw === 'string') {
@@ -271,7 +273,7 @@ export function registerWingRoutes(app: Hono): void {
     const decisionId = requireUUID(c.req.param('id'), 'decision_id');
 
     const result = await db.query<Record<string, unknown>>(
-      'SELECT id, title, description, tags, domain, category, wing, made_by, priority_level, metadata FROM decisions WHERE id = ?',
+      'SELECT id, project_id, title, description, tags, domain, category, wing, made_by, priority_level, metadata FROM decisions WHERE id = ?',
       [decisionId],
     );
     if (result.rows.length === 0) {
@@ -279,6 +281,7 @@ export function registerWingRoutes(app: Hono): void {
     }
 
     const row = result.rows[0];
+    await requireProjectAccess(c, row.project_id as string);
     let tags: string[] = [];
     const rawTags = row.tags;
     if (typeof rawTags === 'string') {
@@ -339,6 +342,7 @@ export function registerWingRoutes(app: Hono): void {
     }
 
     const agentIdVal = agentResult.rows[0].id as string;
+    await requireProjectAccess(c, agentResult.rows[0].project_id as string);
     const affinity = await rebalanceWingAffinity(agentIdVal);
 
     logAudit('wing_rebalanced', agentResult.rows[0].project_id as string, {
