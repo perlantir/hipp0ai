@@ -531,7 +531,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
           <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16, fontSize: 18 }}>
             Give your agents a shared brain
           </div>
-          <a href="https://github.com/perlantir/Hipp0" target="_blank" rel="noopener"
+          <a href="https://github.com/perlantir/hipp0ai" target="_blank" rel="noopener"
             style={{
               display: 'inline-block', padding: '12px 28px',
               backgroundColor: ACCENT, color: '#fff', borderRadius: 10,

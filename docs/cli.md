@@ -174,7 +174,7 @@ Scan a GitHub repository for decisions and import them.
 
 ```bash
 hipp0 import github \
-  --repo perlantir/Hipp0 \
+  --repo perlantir/hipp0ai \
   --token <GITHUB_TOKEN> \
   --project <PROJECT_ID> \
   --api-key <API_KEY>

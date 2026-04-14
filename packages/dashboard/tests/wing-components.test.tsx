@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// ── WingBadge ──────────────────────────────────────────────────────────
+// --- WingBadge ---------------------------------------------------------------------------------------
 
 describe('WingBadge', () => {
   it('renders wing name', () => {
@@ -94,7 +94,7 @@ describe('WingBadge', () => {
   });
 });
 
-// ── WingView ───────────────────────────────────────────────────────────
+// --- WingView ---------------------------------------------------------------------------------------─
 
 describe('WingView', () => {
   it('renders loading state initially', async () => {
@@ -156,7 +156,7 @@ describe('WingView', () => {
   });
 });
 
-// ── wingColor consistency ──────────────────────────────────────────────
+// --- wingColor consistency ---------------------------------------------------------------------
 
 describe('wingColor', () => {
   it('returns a hex color string', () => {

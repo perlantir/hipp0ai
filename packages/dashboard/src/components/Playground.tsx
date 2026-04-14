@@ -676,7 +676,7 @@ export function Playground() {
               Get Started Free <ArrowRight size={16} />
             </a>
             <a
-              href="https://github.com/perlantir/Hipp0"
+              href="https://github.com/perlantir/hipp0ai"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-colors"

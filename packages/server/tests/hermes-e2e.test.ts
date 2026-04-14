@@ -36,7 +36,7 @@
 //  11. pulse home-page aggregate reflects the new activity
 //  12. direct DB inspection to prove writes landed through the HTTP layer
 //
-// See HIPP0_REQUESTS.md in perlantir/hermes-agent for the remaining live H6
+// See HIPP0_REQUESTS.md in perlantir/hermulti for the remaining live H6
 // manual plan that requires the Python provider + Telegram.
 // -----------------------------------------------------------------------------
 

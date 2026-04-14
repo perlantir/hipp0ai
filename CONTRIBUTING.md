@@ -15,7 +15,7 @@ For typo fixes, documentation improvements, and obvious bug fixes: PRs are welco
 ## Getting the Repo Running
 
 ```bash
-git clone https://github.com/perlantir/Hipp0.git
+git clone https://github.com/perlantir/hipp0ai.git
 cd Hipp0
 
 # Install dependencies

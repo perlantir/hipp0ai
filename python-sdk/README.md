@@ -1,6 +1,6 @@
 # hipp0-sdk
 
-Official Python SDK for the [Hipp0](https://github.com/perlantir/Hipp0) multi-agent memory and decision platform.
+Official Python SDK for the [Hipp0](https://github.com/perlantir/hipp0ai) multi-agent memory and decision platform.
 
 ## Installation
 

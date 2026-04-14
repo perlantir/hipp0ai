@@ -79,7 +79,7 @@ Reads `HIPP0_API_URL`, `HIPP0_API_KEY`, `HIPP0_PROJECT_ID` from env (set by `hip
 ### Docker Compose (production)
 
 ```bash
-git clone https://github.com/perlantir/Hipp0.git && cd Hipp0
+git clone https://github.com/perlantir/hipp0ai.git && cd Hipp0
 cp .env.example .env   # Add ANTHROPIC_API_KEY at minimum
 docker compose up -d
 ```

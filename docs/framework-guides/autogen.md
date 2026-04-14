@@ -45,14 +45,14 @@ Prepend [Hipp0 Context] to system message
          ▼
 Agent conversation runs
          │
-    (each message) ──► hipp0_mem.store_message(role, content)
-         │                    └── auto-flush every N messages
+    (each message) ---► hipp0_mem.store_message(role, content)
+         │                    └--- auto-flush every N messages
          │
          ▼
 hipp0_mem.on_session_end()
          │
-    ├── flush_to_distillery()   — LLM extracts decisions
-    └── create_session_summary() — links all extracted decisions
+    ├--- flush_to_distillery()   — LLM extracts decisions
+    └--- create_session_summary() — links all extracted decisions
 ```
 
 The memory object is attached at the Python level — there is no modification to AutoGen internals. You call `get_context()` once at setup and `store_message()` / `on_session_end()` as the conversation progresses.

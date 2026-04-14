@@ -36,8 +36,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/perlantir/Hipp0"
-Documentation = "https://github.com/perlantir/Hipp0"
+Homepage = "https://github.com/perlantir/hipp0ai"
+Documentation = "https://github.com/perlantir/hipp0ai"
 
 [tool.setuptools.packages.find]
 where = ["."]

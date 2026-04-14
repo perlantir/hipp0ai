@@ -56,7 +56,7 @@ if [ -d "$INSTALL_DIR" ]; then
     git pull origin main
 else
     echo "Cloning Hipp0..."
-    git clone https://github.com/perlantir/Hipp0.git "$INSTALL_DIR"
+    git clone https://github.com/perlantir/hipp0ai.git "$INSTALL_DIR"
     cd "$INSTALL_DIR"
 fi
 
@@ -160,5 +160,5 @@ else
     echo -e "  ${YELLOW}Create your first project in the dashboard to get an API key${NC}"
 fi
 echo ""
-echo "  Docs:  https://github.com/perlantir/Hipp0/blob/main/docs/getting-started.md"
+echo "  Docs:  https://github.com/perlantir/hipp0ai/blob/main/docs/getting-started.md"
 echo ""

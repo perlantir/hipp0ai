@@ -11,7 +11,7 @@
 import { getPool, closePool, query } from '../packages/core/src/db/pool.js';
 import { getRoleProfile } from '../packages/core/src/roles.js';
 
-// ── ANSI colours ─────────────────────────────────────────────────────────────
+// --- ANSI colours ------------------------------------------------------------------------------------------─
 
 const GREEN  = '\x1b[32m';
 const CYAN   = '\x1b[36m';
@@ -24,7 +24,7 @@ function log(msg: string) { console.log(msg); }
 function ok(msg: string) { console.log(`  ${GREEN}✓${RESET} ${msg}`); }
 function info(msg: string) { console.log(`  ${DIM}${msg}${RESET}`); }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// --- Helpers ---------------------------------------------------------------------------------------------------─
 
 async function qOne<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T> {
   const result = await query<T>(sql, params);
@@ -38,7 +38,7 @@ async function qRows<T = Record<string, unknown>>(sql: string, params?: unknown[
   return result.rows;
 }
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// --- Types ------------------------------------------------------------------------------------------------------─
 
 interface Row { id: string }
 
@@ -63,7 +63,7 @@ interface DecisionInput {
   dependencies?: string[];
 }
 
-// ── Seed Data ─────────────────────────────────────────────────────────────────
+// --- Seed Data ------------------------------------------------------------------------------------------------─
 
 async function seed() {
   log(`\n${BOLD}${CYAN}🌱 Hipp0 Demo Seed — TaskFlow${RESET}\n`);
@@ -77,9 +77,9 @@ async function seed() {
   await qOne('SELECT 1 AS ok');
   ok('Database connection established');
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 0. Idempotency: Remove previous demo seed if exists
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   const existing = await qRows(
     `SELECT id FROM projects WHERE name = 'TaskFlow — AI-Powered Task Management'`,
   );
@@ -102,9 +102,9 @@ async function seed() {
     ok('Previous seed removed');
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 1. Create Project
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating project...${RESET}`);
 
   const project = await qOne<Row>(
@@ -126,9 +126,9 @@ async function seed() {
   const projectId = project.id;
   ok(`Project: "TaskFlow — AI-Powered Task Management" (${projectId})`);
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 2. Create Agents
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating agents...${RESET}`);
 
   const agentDefs = [
@@ -172,9 +172,9 @@ async function seed() {
     ok(`Agent: ${agent.name} (${agent.role}) — ${row.id}`);
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 3. Create Decisions
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating decisions...${RESET}`);
 
   async function createDecision(projectId: string, d: DecisionInput): Promise<string> {
@@ -209,7 +209,7 @@ async function seed() {
 
   const decisionIds: Record<string, string> = {};
 
-  // ── Decision 1: Next.js 15 App Router
+  // --- Decision 1: Next.js 15 App Router
   decisionIds.frontend = await createDecision(projectId, {
     title: 'Use Next.js 15 App Router for frontend',
     description:
@@ -238,7 +238,7 @@ async function seed() {
   });
   ok(`Decision 1: Use Next.js 15 App Router (${decisionIds.frontend})`);
 
-  // ── Decision 2: PostgreSQL + Drizzle ORM
+  // --- Decision 2: PostgreSQL + Drizzle ORM
   decisionIds.database = await createDecision(projectId, {
     title: 'PostgreSQL with Drizzle ORM for database',
     description:
@@ -271,7 +271,7 @@ async function seed() {
   });
   ok(`Decision 2: PostgreSQL + Drizzle ORM (${decisionIds.database})`);
 
-  // ── Decision 3: JWT with refresh token rotation
+  // --- Decision 3: JWT with refresh token rotation
   decisionIds.jwtAuth = await createDecision(projectId, {
     title: 'JWT with refresh token rotation for auth',
     description:
@@ -300,7 +300,7 @@ async function seed() {
   });
   ok(`Decision 3: JWT auth (${decisionIds.jwtAuth})`);
 
-  // ── Decision 4: RBAC
+  // --- Decision 4: RBAC
   decisionIds.rbac = await createDecision(projectId, {
     title: 'Implement role-based access control (RBAC)',
     description:
@@ -322,7 +322,7 @@ async function seed() {
   });
   ok(`Decision 4: RBAC (${decisionIds.rbac})`);
 
-  // ── Decision 5: tRPC for API (SUPERSEDED by #6)
+  // --- Decision 5: tRPC for API (SUPERSEDED by #6)
   decisionIds.trpc = await createDecision(projectId, {
     title: 'Use tRPC for API layer',
     description:
@@ -343,7 +343,7 @@ async function seed() {
   });
   ok(`Decision 5: tRPC (to be superseded) (${decisionIds.trpc})`);
 
-  // ── Decision 6: Switch to REST + Hono (supersedes tRPC)
+  // --- Decision 6: Switch to REST + Hono (supersedes tRPC)
   decisionIds.honoRest = await createDecision(projectId, {
     title: 'Switch to REST with Hono for API',
     description:
@@ -376,7 +376,7 @@ async function seed() {
     [decisionIds.trpc],
   );
 
-  // ── Decision 7: Tailwind + shadcn/ui
+  // --- Decision 7: Tailwind + shadcn/ui
   decisionIds.ui = await createDecision(projectId, {
     title: 'Tailwind CSS + shadcn/ui for component library',
     description:
@@ -396,7 +396,7 @@ async function seed() {
   });
   ok(`Decision 7: Tailwind + shadcn/ui (${decisionIds.ui})`);
 
-  // ── Decision 8: WebSocket for real-time
+  // --- Decision 8: WebSocket for real-time
   decisionIds.websocket = await createDecision(projectId, {
     title: 'WebSocket for real-time task updates',
     description:
@@ -427,7 +427,7 @@ async function seed() {
   });
   ok(`Decision 8: WebSocket real-time (${decisionIds.websocket})`);
 
-  // ── Decision 9: Task Dependency Graph
+  // --- Decision 9: Task Dependency Graph
   decisionIds.taskGraph = await createDecision(projectId, {
     title: 'Implement task dependency graph',
     description:
@@ -452,7 +452,7 @@ async function seed() {
   });
   ok(`Decision 9: Task dependency graph (${decisionIds.taskGraph})`);
 
-  // ── Decision 10: Redis for caching
+  // --- Decision 10: Redis for caching
   decisionIds.redis = await createDecision(projectId, {
     title: 'Use Redis for caching and rate limiting',
     description:
@@ -476,7 +476,7 @@ async function seed() {
   });
   ok(`Decision 10: Redis caching (${decisionIds.redis})`);
 
-  // ── Decision 11: Audit Logging
+  // --- Decision 11: Audit Logging
   decisionIds.auditLog = await createDecision(projectId, {
     title: 'Implement audit logging for compliance',
     description:
@@ -501,7 +501,7 @@ async function seed() {
   });
   ok(`Decision 11: Audit logging (${decisionIds.auditLog})`);
 
-  // ── Decision 12: Stripe Billing
+  // --- Decision 12: Stripe Billing
   decisionIds.billing = await createDecision(projectId, {
     title: 'Use Stripe for billing integration',
     description:
@@ -525,7 +525,7 @@ async function seed() {
   });
   ok(`Decision 12: Stripe billing (${decisionIds.billing})`);
 
-  // ── Decision 13: Railway Deployment
+  // --- Decision 13: Railway Deployment
   decisionIds.deployment = await createDecision(projectId, {
     title: 'Deploy on Railway with auto-scaling',
     description:
@@ -549,7 +549,7 @@ async function seed() {
   });
   ok(`Decision 13: Railway deployment (${decisionIds.deployment})`);
 
-  // ── Decision 14: AI Task Prioritisation
+  // --- Decision 14: AI Task Prioritisation
   decisionIds.aiPriority = await createDecision(projectId, {
     title: 'Add AI task prioritisation with GPT-4o-mini',
     description:
@@ -586,7 +586,7 @@ async function seed() {
   });
   ok(`Decision 14: AI task prioritisation (${decisionIds.aiPriority})`);
 
-  // ── Decision 15: E2E Tests with Playwright
+  // --- Decision 15: E2E Tests with Playwright
   decisionIds.e2eTests = await createDecision(projectId, {
     title: 'Implement E2E tests with Playwright',
     description:
@@ -609,7 +609,7 @@ async function seed() {
   });
   ok(`Decision 15: E2E tests with Playwright (${decisionIds.e2eTests})`);
 
-  // ── Decision 16: Pending — AI embedding strategy
+  // --- Decision 16: Pending — AI embedding strategy
   decisionIds.embeddingStrategy = await createDecision(projectId, {
     title: 'Decide on embedding strategy for semantic task search',
     description:
@@ -634,9 +634,9 @@ async function seed() {
   });
   ok(`Decision 16: Embedding strategy (pending) (${decisionIds.embeddingStrategy})`);
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 4. Create Decision Edges
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating decision edges...${RESET}`);
 
   const edgeDefs = [
@@ -678,9 +678,9 @@ async function seed() {
   }
   ok(`Created ${edgeDefs.length} decision edges`);
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 5. Create Contradiction
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating contradiction...${RESET}`);
 
   // JWT auth contradicts hypothetical session-based approach
@@ -695,9 +695,9 @@ async function seed() {
   );
   ok('Contradiction: JWT auth ↔ audit log (session assumptions mismatch)');
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 6. Create Subscriptions
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating subscriptions...${RESET}`);
 
   const subscriptionDefs = [
@@ -721,9 +721,9 @@ async function seed() {
   }
   ok(`Created ${subscriptionDefs.length} agent subscriptions`);
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 7. Create Session Summaries
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating session summaries...${RESET}`);
 
   const daysAgo = (n: number) =>
@@ -816,9 +816,9 @@ async function seed() {
     ok(`Session: "${s.topic.slice(0, 50)}" by ${s.agent}`);
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 8. Create Artifacts
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating artifacts...${RESET}`);
 
   const artifacts = [
@@ -892,9 +892,9 @@ async function seed() {
     ok(`Artifact: "${artifact.name.slice(0, 50)}" (${artifact.artifact_type})`);
   }
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 9. Create Notifications
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${BOLD}Creating notifications...${RESET}`);
 
   const notifications = [
@@ -946,9 +946,9 @@ async function seed() {
   }
   ok(`Created ${notifications.length} agent notifications`);
 
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   // 10. Summary
-  // ────────────────────────────────────────────────────────────────────────
+  // ------------------------------------------------------------------------------------------------------------
   log(`\n${'═'.repeat(55)}`);
   log(`${BOLD}${GREEN}✓ Demo seed complete!${RESET}`);
   log(`${'═'.repeat(55)}\n`);
