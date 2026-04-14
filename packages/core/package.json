@@ -251,10 +251,6 @@
       "import": "./dist/intelligence/digest-delivery.js",
       "types": "./dist/intelligence/digest-delivery.d.ts"
     },
-    "./intelligence/resilience.js": {
-      "import": "./dist/intelligence/resilience.js",
-      "types": "./dist/intelligence/resilience.d.ts"
-    },
     "./telemetry.js": {
       "import": "./dist/telemetry.js",
       "types": "./dist/telemetry.d.ts"
@@ -280,6 +276,7 @@
     "@opentelemetry/api": "^1.9.1",
     "better-sqlite3": "^12.8.0",
     "crypto-js": "^4.2.0",
+    "js-tiktoken": "^1.0.21",
     "nodemailer": "^8.0.5",
     "openai": "^4.73.0",
     "pg": "^8.13.0",
