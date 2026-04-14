@@ -641,6 +641,14 @@ export function registerHermesRoutes(app: Hono): void {
     if (!Array.isArray(body.facts) || body.facts.length === 0) {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'facts must be a non-empty array' } }, 400);
     }
+    // Cap payload size: each fact does N DB round-trips, so an unbounded
+    // array is a cheap DOS vector. 100 matches the snippet_ids cap below.
+    if (body.facts.length > 100) {
+      return c.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'facts must contain at most 100 entries' } },
+        400,
+      );
+    }
     const facts: HermesUserFact[] = body.facts.map((f, i) => {
       if (typeof f !== 'object' || f === null) {
         throw new Error(`facts[${i}] must be an object`);

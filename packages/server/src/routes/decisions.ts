@@ -1582,10 +1582,24 @@ export function registerDecisionRoutes(app: Hono): void {
     const projectId = requireUUID(c.req.param('id'), 'projectId');
     await requireProjectAccess(c, projectId);
 
+    // Admin/owner only: this endpoint reads arbitrary files from the server
+    // filesystem and feeds them to the LLM distillery. Non-admin users must
+    // not be able to exfiltrate server content via chosen import path.
+    if (isAuthRequired()) {
+      const user = c.get('user' as never) as { role?: string } | undefined;
+      if (!user || (user.role !== 'admin' && user.role !== 'owner')) {
+        return c.json(
+          { error: { code: 'FORBIDDEN', message: 'Admin role required to import from filesystem' } },
+          403,
+        );
+      }
+    }
+
     const body = await c.req.json().catch(() => ({})) as { path?: unknown; max_files?: unknown };
+    const envPath = process.env.HIPP0_OPENCLAW_PATH ?? '';
     const rawPath = typeof body.path === 'string' && body.path.trim()
       ? body.path.trim()
-      : (process.env.HIPP0_OPENCLAW_PATH ?? '');
+      : envPath;
 
     if (!rawPath) {
       return c.json({
@@ -1593,8 +1607,28 @@ export function registerDecisionRoutes(app: Hono): void {
       }, 400);
     }
 
-    if (!fs.existsSync(rawPath)) {
-      return c.json({ error: `Path does not exist inside container: ${rawPath}` }, 400);
+    // Confine the import to HIPP0_OPENCLAW_PATH when set. This prevents an
+    // admin from accidentally (or an attacker with stolen admin creds from
+    // deliberately) reading markdown from anywhere on disk. When the env var
+    // is unset the endpoint is implicitly disabled for body-supplied paths.
+    if (!envPath) {
+      return c.json({
+        error: 'HIPP0_OPENCLAW_PATH must be configured on the server before using this endpoint.',
+      }, 400);
+    }
+    const resolvedPath = path.resolve(rawPath);
+    const resolvedEnvPath = path.resolve(envPath);
+    if (
+      resolvedPath !== resolvedEnvPath &&
+      !resolvedPath.startsWith(resolvedEnvPath + path.sep)
+    ) {
+      return c.json({
+        error: `path must be within HIPP0_OPENCLAW_PATH (${resolvedEnvPath})`,
+      }, 400);
+    }
+
+    if (!fs.existsSync(resolvedPath)) {
+      return c.json({ error: `Path does not exist inside container: ${resolvedPath}` }, 400);
     }
 
     const maxFiles = typeof body.max_files === 'number' && body.max_files > 0
@@ -1607,11 +1641,11 @@ export function registerDecisionRoutes(app: Hono): void {
     // Discover all workspace-<agent>/ dirs under the path
     const workspaceDirs: Array<{ agent: string; dir: string }> = [];
     try {
-      for (const entry of fs.readdirSync(rawPath, { withFileTypes: true })) {
+      for (const entry of fs.readdirSync(resolvedPath, { withFileTypes: true })) {
         if (entry.isDirectory() && entry.name.startsWith('workspace-')) {
           workspaceDirs.push({
             agent: entry.name.replace(/^workspace-/, ''),
-            dir: path.join(rawPath, entry.name),
+            dir: path.join(resolvedPath, entry.name),
           });
         }
       }
@@ -1621,7 +1655,7 @@ export function registerDecisionRoutes(app: Hono): void {
 
     if (workspaceDirs.length === 0) {
       return c.json({
-        error: `No workspace-* subdirectories found in ${rawPath}`,
+        error: `No workspace-* subdirectories found in ${resolvedPath}`,
         total_files: 0,
         submitted: 0,
         skipped: 0,
@@ -1685,7 +1719,7 @@ export function registerDecisionRoutes(app: Hono): void {
           continue;
         }
 
-        const relPath = path.relative(rawPath, filePath);
+        const relPath = path.relative(resolvedPath, filePath);
         // Fire-and-forget so the HTTP response returns immediately even
         // when the queue is in inline mode (no Redis). Otherwise a 500-file
         // import would block the curl for 15-25 minutes while each file
@@ -1706,7 +1740,7 @@ export function registerDecisionRoutes(app: Hono): void {
     }
 
     return c.json({
-      path: rawPath,
+      path: resolvedPath,
       workspaces_found: workspaceDirs.length,
       total_files_scanned: totalFiles,
       submitted,
