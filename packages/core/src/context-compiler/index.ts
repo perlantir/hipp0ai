@@ -225,7 +225,19 @@ function finalizeResults(
 
   const filtered = scored.filter((d) => d.combined_score >= minScore);
   const deduped = deduplicateDecisions(filtered);
-  const sorted = deduped.sort((a, b) => b.combined_score - a.combined_score);
+  // Stable sort by score DESC; break ties by updated_at DESC (fall back to
+  // created_at) so recent edits win packing slots when scores are equal.
+  const sorted = deduped.sort((a, b) => {
+    const scoreDiff = b.combined_score - a.combined_score;
+    if (scoreDiff !== 0) return scoreDiff;
+    const aTs = new Date(
+      (a as Decision & { updated_at?: string | Date | null }).updated_at ?? a.created_at,
+    ).getTime();
+    const bTs = new Date(
+      (b as Decision & { updated_at?: string | Date | null }).updated_at ?? b.created_at,
+    ).getTime();
+    return (Number.isFinite(bTs) ? bTs : 0) - (Number.isFinite(aTs) ? aTs : 0);
+  });
   const capped = sorted.slice(0, maxResults);
 
   // Normalize: map top score to 0.95, scale others proportionally
