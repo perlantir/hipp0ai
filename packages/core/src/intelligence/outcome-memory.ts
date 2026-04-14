@@ -6,7 +6,7 @@ import { parseDecisionOutcome } from '../db/parsers.js';
 const OUTCOME_FLOOR = 0.85;
 const OUTCOME_CEILING = 1.10;
 // Minimum outcomes before the multiplier has meaningful effect
-const MIN_OUTCOMES_FOR_EFFECT = 3;
+const MIN_OUTCOMES_FOR_EFFECT = 1;
 
 /**
  * Record a decision-level outcome.
