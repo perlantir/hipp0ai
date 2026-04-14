@@ -16,6 +16,7 @@ import { runCaptureDedup } from '@hipp0/core/intelligence/capture-dedup.js';
 import { generateEmbedding } from '@hipp0/core/decision-graph/embeddings.js';
 import { defaultProvenance, computeTrust } from '@hipp0/core/intelligence/trust-scorer.js';
 import { safeEmit } from '../events/event-stream.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerCaptureRoutes(app: Hono): void {
     // POST /api/capture — Submit conversation for background extraction
@@ -34,6 +35,7 @@ export function registerCaptureRoutes(app: Hono): void {
 
     const agent_name = requireString(body.agent_name, 'agent_name', 200);
     const project_id = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, project_id);
     // Accept content/text as aliases for conversation
     const rawConversation = body.conversation ?? body.content ?? body.text;
     const conversation = requireString(rawConversation, 'conversation', 500000);
@@ -170,6 +172,7 @@ export function registerCaptureRoutes(app: Hono): void {
     // GET /api/projects/:id/captures — List captures for a project
   app.get('/api/projects/:id/captures', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     const db = getDb();
     const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 100);
     const offset = parseInt(c.req.query('offset') ?? '0', 10);

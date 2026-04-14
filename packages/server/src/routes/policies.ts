@@ -14,6 +14,8 @@
 import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
 import { randomUUID } from 'node:crypto';
+import { requireUUID } from './validation.js';
+import { requireProjectAccess } from './_helpers.js';
 
 /*  Helpers  */
 
@@ -32,7 +34,7 @@ export function registerPolicyRoutes(app: Hono): void {
   // Create / update policy for a decision
   app.post('/api/decisions/:id/policy', async (c) => {
     const db = getDb();
-    const decisionId = c.req.param('id');
+    const decisionId = requireUUID(c.req.param('id'), 'decision_id');
 
     const body = await c.req.json<{
       enforcement?: string;
@@ -53,6 +55,7 @@ export function registerPolicyRoutes(app: Hono): void {
     const dec = await db.query('SELECT id, project_id FROM decisions WHERE id = ?', [decisionId]);
     if (dec.rows.length === 0) return c.json({ error: 'Decision not found' }, 404);
     const projectId = (dec.rows[0] as Record<string, unknown>).project_id as string;
+    await requireProjectAccess(c, projectId);
 
     // Upsert — check if policy already exists for this decision
     const existing = await db.query(
@@ -98,7 +101,8 @@ export function registerPolicyRoutes(app: Hono): void {
   // List active policies for a project
   app.get('/api/projects/:id/policies', async (c) => {
     const db = getDb();
-    const projectId = c.req.param('id');
+    const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
 
     const result = await db.query(
       `SELECT dp.*, d.title AS decision_title,
@@ -117,10 +121,11 @@ export function registerPolicyRoutes(app: Hono): void {
   // Update a policy
   app.patch('/api/policies/:id', async (c) => {
     const db = getDb();
-    const policyId = c.req.param('id');
+    const policyId = requireUUID(c.req.param('id'), 'policy_id');
     const body = await c.req.json<Record<string, unknown>>();
 
-    const projectId = requireString(body.project_id, 'project_id');
+    const projectId = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, projectId);
 
     const sets: string[] = [];
     const params: unknown[] = [];
@@ -155,11 +160,9 @@ export function registerPolicyRoutes(app: Hono): void {
   // Deactivate a policy (soft delete)
   app.delete('/api/policies/:id', async (c) => {
     const db = getDb();
-    const policyId = c.req.param('id');
-    const projectId = c.req.query('project_id');
-    if (!projectId) {
-      return c.json({ error: 'project_id query parameter is required' }, 400);
-    }
+    const policyId = requireUUID(c.req.param('id'), 'policy_id');
+    const projectId = requireUUID(c.req.query('project_id'), 'project_id');
+    await requireProjectAccess(c, projectId);
 
     const result = await db.query(
       'UPDATE decision_policies SET active = ?, updated_at = ? WHERE id = ? AND project_id = ? RETURNING id',
@@ -174,7 +177,8 @@ export function registerPolicyRoutes(app: Hono): void {
   // List violations
   app.get('/api/projects/:id/violations', async (c) => {
     const db = getDb();
-    const projectId = c.req.param('id');
+    const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     const status = c.req.query('status');
 
     let query = `SELECT pv.*, d.title AS decision_title
@@ -197,7 +201,7 @@ export function registerPolicyRoutes(app: Hono): void {
   // Resolve / acknowledge a violation
   app.patch('/api/violations/:id', async (c) => {
     const db = getDb();
-    const violationId = c.req.param('id');
+    const violationId = requireUUID(c.req.param('id'), 'violation_id');
     const body = await c.req.json<{
       project_id?: string;
       status?: string;
@@ -208,9 +212,19 @@ export function registerPolicyRoutes(app: Hono): void {
     const sets: string[] = [];
     const params: unknown[] = [];
 
-    const projectId = requireString(body.project_id, 'project_id');
+    const projectId = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, projectId);
 
-    if (body.status) { sets.push('status = ?'); params.push(body.status); }
+    const VALID_STATUS = ['open', 'acknowledged', 'resolved'] as const;
+    if (body.status !== undefined) {
+      if (!(VALID_STATUS as readonly string[]).includes(body.status)) {
+        return c.json(
+          { error: { code: 'VALIDATION_ERROR', message: `status must be one of: ${VALID_STATUS.join(', ')}` } },
+          400,
+        );
+      }
+      sets.push('status = ?'); params.push(body.status);
+    }
     if (body.resolved_by) { sets.push('resolved_by = ?'); params.push(body.resolved_by); }
     if (body.resolution_notes) { sets.push('resolution_notes = ?'); params.push(body.resolution_notes); }
     if (body.status === 'resolved') {
@@ -231,7 +245,8 @@ export function registerPolicyRoutes(app: Hono): void {
   // Violation summary
   app.get('/api/projects/:id/violations/summary', async (c) => {
     const db = getDb();
-    const projectId = c.req.param('id');
+    const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
 
     const [openR, ackR, resolvedR, allR] = await Promise.all([
       db.query("SELECT COUNT(*) as c FROM policy_violations WHERE project_id = ? AND status = 'open'", [projectId]),
@@ -273,7 +288,8 @@ export function registerPolicyRoutes(app: Hono): void {
       planned_action?: string;
     }>();
 
-    const projectId = requireString(body.project_id, 'project_id');
+    const projectId = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, projectId);
     const agentName = requireString(body.agent_name, 'agent_name');
     const plannedAction = requireString(body.planned_action, 'planned_action');
 
