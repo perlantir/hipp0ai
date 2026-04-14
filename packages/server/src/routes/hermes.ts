@@ -794,20 +794,39 @@ export function registerHermesRoutes(app: Hono): void {
     await requireProjectAccess(c, project_id);
     const external_user_id = requireString(c.req.query('external_user_id'), 'external_user_id', 200);
 
+    // Pagination: `limit` clamped to [1, 500], default 100. `offset` >= 0,
+    // default 0. We fetch `limit + 1` and derive `has_more` from whether
+    // the extra row came back — avoids a second COUNT(*) query.
+    const rawLimit = parseInt(c.req.query('limit') ?? '100', 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 100, 1), 500);
+    const rawOffset = parseInt(c.req.query('offset') ?? '0', 10);
+    const offset = Math.max(Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0, 0);
+
     const db = getDb();
     const result = await db.query(
       `SELECT key, value, source, version, updated_at FROM hermes_user_facts
         WHERE project_id = ? AND external_user_id = ?
-        ORDER BY updated_at DESC, key ASC`,
-      [project_id, external_user_id],
+        ORDER BY updated_at DESC, key ASC
+        LIMIT ? OFFSET ?`,
+      [project_id, external_user_id, limit + 1, offset],
     );
 
-    if (result.rows.length === 0) {
-      return c.json({ external_user_id, version: null, facts: [] });
+    const hasMore = result.rows.length > limit;
+    const pageRows = hasMore ? result.rows.slice(0, limit) : result.rows;
+
+    if (pageRows.length === 0) {
+      return c.json({
+        external_user_id,
+        version: null,
+        facts: [],
+        offset,
+        limit,
+        has_more: false,
+      });
     }
 
-    const version = (result.rows[0] as Record<string, unknown>).version as string;
-    const facts = result.rows.map((row) => {
+    const version = (pageRows[0] as Record<string, unknown>).version as string;
+    const facts = pageRows.map((row) => {
       const r = row as Record<string, unknown>;
       return {
         key: r.key as string,
@@ -820,7 +839,14 @@ export function registerHermesRoutes(app: Hono): void {
     // Mirror the version in the ETag header so clients can use either
     // body.version or HTTP If-None-Match / If-Match semantics.
     c.header('ETag', version);
-    return c.json({ external_user_id, version, facts });
+    return c.json({
+      external_user_id,
+      version,
+      facts,
+      offset,
+      limit,
+      has_more: hasMore,
+    });
   });
 
   // -----------------------------------------------------------------------
