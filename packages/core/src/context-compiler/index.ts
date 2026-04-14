@@ -217,6 +217,18 @@ function deduplicateDecisions(decisions: ScoredDecision[]): ScoredDecision[] {
   // Single Output Funnel
 // EVERY code path must go through this before returning decisions.
 
+// Cap on the audit trail array so the compile response doesn't bloat
+// on projects with 10k+ decisions. Keeps the top N drops (we record
+// filter-order which is score-DESC-ish, so earlier entries are the most
+// "interesting" near-misses).
+const FILTERED_TRAIL_LIMIT = 200;
+
+type FilteredDrop = {
+  decision_id: string;
+  reason: 'below_threshold' | 'over_budget' | 'duplicate';
+  score: number;
+};
+
 function finalizeResults(
   scored: ScoredDecision[],
   agentName: string,
@@ -224,14 +236,32 @@ function finalizeResults(
   startMs: number,
   minScore: number = MIN_SCORE,
   maxResults: number = MAX_RESULTS,
-): ScoredDecision[] {
+): { capped: ScoredDecision[]; filtered: FilteredDrop[] } {
   // Re-clamp all scores to [0, 1.0]
   for (const d of scored) {
     d.combined_score = Math.max(0, Math.min(1.0, d.combined_score));
   }
 
-  const filtered = scored.filter((d) => d.combined_score >= minScore);
-  const deduped = deduplicateDecisions(filtered);
+  const drops: FilteredDrop[] = [];
+  const pushDrop = (d: FilteredDrop) => {
+    if (drops.length < FILTERED_TRAIL_LIMIT) drops.push(d);
+  };
+
+  const filtered: ScoredDecision[] = [];
+  for (const d of scored) {
+    if (d.combined_score >= minScore) {
+      filtered.push(d);
+    } else {
+      pushDrop({ decision_id: d.id, reason: 'below_threshold', score: d.combined_score });
+    }
+  }
+  const dedupedSet = new Set(deduplicateDecisions(filtered).map((d) => d.id));
+  for (const d of filtered) {
+    if (!dedupedSet.has(d.id)) {
+      pushDrop({ decision_id: d.id, reason: 'duplicate', score: d.combined_score });
+    }
+  }
+  const deduped = filtered.filter((d) => dedupedSet.has(d.id));
   // Stable sort by score DESC; break ties by updated_at DESC (fall back to
   // created_at) so recent edits win packing slots when scores are equal.
   const sorted = deduped.sort((a, b) => {
@@ -246,6 +276,12 @@ function finalizeResults(
     return (Number.isFinite(bTs) ? bTs : 0) - (Number.isFinite(aTs) ? aTs : 0);
   });
   const capped = sorted.slice(0, maxResults);
+  // Record decisions that passed the threshold + dedupe but didn't survive
+  // the MAX_RESULTS cap. These are the most informative drops for
+  // debugging "why didn't X show up".
+  for (const d of sorted.slice(maxResults)) {
+    pushDrop({ decision_id: d.id, reason: 'over_budget', score: d.combined_score });
+  }
 
   // Normalize: map top score to 0.95, scale others proportionally
   if (capped.length > 0) {
@@ -280,7 +316,7 @@ function finalizeResults(
     `[hipp0/compile] agent=${agentName} project=${(projectId ?? '').slice(0, 8)}.. scored=${scored.length} passed=${capped.length} top=${(capped[0]?.combined_score ?? 0).toFixed(3)} semantic=${scored.filter((d) => ((d.scoring_breakdown as unknown) as Record<string, unknown>)?.semantic_similarity as number > 0).length} ms=${ms}`,
   );
 
-  return capped;
+  return { capped, filtered: drops };
 }
 
   // Conversational Explanation Generator
@@ -1320,7 +1356,12 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   // SINGLE OUTPUT FUNNEL: filter + dedupe + sort + cap
   // Every code path goes through finalizeResults — no exceptions.
-  const packedDecisions = finalizeResults(allScored, agent_name, project_id, startMs);
+  const { capped: packedDecisions, filtered: filteredDrops } = finalizeResults(
+    allScored,
+    agent_name,
+    project_id,
+    startMs,
+  );
 
   // Update last_referenced_at + reference_count for included decisions
   if (packedDecisions.length > 0) {
@@ -1456,6 +1497,7 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     },
     wing_sources: computeWingSources(packedDecisions, agent_name),
     suggested_patterns: suggestedPatterns,
+    filtered: filteredDrops,
   };
 
   const includedDecisionIds = packedDecisions.map((d) => d.id);
