@@ -1130,8 +1130,12 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   const allScored = [...scored, ...expandedScored];
 
+  // Cap artifact fetch at 100 most-recent rows — scoring is an O(N*M) loop
+  // against decisionScoreMap, and the packer only keeps items that fit the
+  // artifact token budget. Loading every artifact for long-lived projects
+  // wasted memory + CPU on rows that would never be included.
   const artifactResult = await db.query<Record<string, unknown>>(
-    `SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC`,
+    `SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC LIMIT 100`,
     [project_id],
   );
   const allArtifacts = artifactResult.rows.map(parseArtifact);
