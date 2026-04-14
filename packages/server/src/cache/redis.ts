@@ -7,6 +7,12 @@
  *   await cache.set('key', value, 300); // TTL in seconds
  *   await cache.del('key');
  *   await cache.invalidatePrefix('compile:project123');
+ *
+ * TTL invariant: both RedisCache and InMemoryCache honor the same
+ * `ttlSeconds` argument passed by the caller. All call sites route
+ * TTLs through the `CACHE_TTL` constants below, so the fallback and
+ * the Redis layer cannot diverge — adding a new key requires adding
+ * its TTL here and nowhere else.
  */
 
 /* ------------------------------------------------------------------ */
