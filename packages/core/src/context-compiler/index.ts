@@ -291,12 +291,78 @@ function generateExplanation(
   return 'General project context.';
 }
 
+// Hermes trust multiplier bounds — mirror the primary outcomeMultiplier
+// envelope so per-turn reactions can boost/dampen scoring but cannot
+// dominate it.
+const HERMES_TRUST_FLOOR = 0.85;
+const HERMES_TRUST_CEILING = 1.10;
+
+/**
+ * Build a per-decision trust multiplier from hermes_outcomes for a project.
+ *
+ * Reads the snippet_ids_json arrays of every hermes_outcomes row in the
+ * project, aggregates positive/negative/neutral reactions per decision id,
+ * and returns a Map keyed by decision id. Decisions with no hermes
+ * reactions are absent from the map (callers should default to 1.0).
+ *
+ * Kept intentionally simple: net reaction score -> [HERMES_TRUST_FLOOR,
+ * HERMES_TRUST_CEILING] with small-sample dampening. Matches the style
+ * of outcomeMultiplier in packages/core/src/intelligence/outcome-memory.ts.
+ */
+async function loadHermesTrustMultipliers(
+  projectId: string,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  try {
+    const db = getDb();
+    const result = await db.query<Record<string, unknown>>(
+      `SELECT outcome, snippet_ids_json FROM hermes_outcomes WHERE project_id = ?`,
+      [projectId],
+    );
+    const counts = new Map<string, { pos: number; neg: number; total: number }>();
+    for (const row of result.rows) {
+      const outcome = row.outcome as string;
+      const raw = row.snippet_ids_json;
+      let ids: string[] = [];
+      if (typeof raw === 'string') {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) ids = parsed.filter((v) => typeof v === 'string');
+        } catch { /* skip malformed */ }
+      } else if (Array.isArray(raw)) {
+        ids = (raw as unknown[]).filter((v): v is string => typeof v === 'string');
+      }
+      for (const id of ids) {
+        const c = counts.get(id) ?? { pos: 0, neg: 0, total: 0 };
+        if (outcome === 'positive') c.pos++;
+        else if (outcome === 'negative') c.neg++;
+        c.total++;
+        counts.set(id, c);
+      }
+    }
+    for (const [id, c] of counts) {
+      if (c.total === 0) continue;
+      const net = (c.pos - c.neg) / c.total; // [-1, 1]
+      const dampening = Math.min(1.0, c.total / 10);
+      const range = HERMES_TRUST_CEILING - HERMES_TRUST_FLOOR;
+      const midpoint = (HERMES_TRUST_CEILING + HERMES_TRUST_FLOOR) / 2;
+      const mult = midpoint + (net * range / 2) * dampening;
+      map.set(id, Math.max(HERMES_TRUST_FLOOR, Math.min(HERMES_TRUST_CEILING, mult)));
+    }
+  } catch (err) {
+    // Non-fatal: fall back to neutral scoring on any DB error.
+    console.warn('[hipp0/compile] hermes trust multiplier load failed:', (err as Error).message);
+  }
+  return map;
+}
+
 export function scoreDecision(
   decision: Decision,
   agent: Agent,
   taskEmbedding: number[],
   domainContext?: { taskDomain?: DecisionDomain | null; agentDomain?: DecisionDomain | null },
   taskDescription?: string,
+  hermesTrustMultipliers?: Map<string, number>,
 ): ScoredDecision {
   const profile = agent.relevance_profile;
   const agentNameLower = agent.name.toLowerCase();
@@ -461,6 +527,13 @@ export function scoreDecision(
     (decision as Decision & { outcome_count?: number }).outcome_count,
   );
   finalScore *= outcomeMult;
+
+  // Hermes outcome trust multiplier: positive per-turn reactions on this
+  // decision (delivered as a snippet in the Hermes brief) boost; negative
+  // reactions dampen. Bounded to the same [0.85, 1.10] envelope as the
+  // primary outcome multiplier so it cannot dominate scoring on its own.
+  const hermesTrustMult = hermesTrustMultipliers?.get(decision.id) ?? 1.0;
+  finalScore *= hermesTrustMult;
 
   // Staleness multiplier: tier-aware gradual ramp (permanent tier NEVER stale)
   let stalenessMultiplier = 1.0;
@@ -949,8 +1022,10 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   const agentDomain = persona ? inferDomainFromTask(persona.primaryTags.join(' ')) : null;
   const domainContext = { taskDomain, agentDomain };
 
+  const hermesTrustMultipliers = await loadHermesTrustMultipliers(project_id);
+
   const scored = allDecisions.map((d) => {
-    const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description);
+    const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description, hermesTrustMultipliers);
     // Tag loading layer
     if (l0Ids.has(d.id)) {
       sd.loading_layer = 'L0';
