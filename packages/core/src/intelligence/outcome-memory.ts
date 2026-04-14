@@ -27,6 +27,9 @@ export async function recordDecisionOutcome(params: {
   const id = (await import('node:crypto')).randomUUID();
   const score = Math.max(0, Math.min(1, params.outcome_score));
 
+  // SQLite cannot bind booleans — cast to 0/1 at the edge. Postgres accepts
+  // both but the integer form is safe across both dialects.
+  const reversalBind = (params.reversal ?? false) ? 1 : 0;
   await db.query(
     `INSERT INTO decision_outcomes
      (id, decision_id, project_id, agent_id, compile_history_id, task_session_id,
@@ -41,7 +44,7 @@ export async function recordDecisionOutcome(params: {
       params.task_session_id ?? null,
       params.outcome_type,
       score,
-      params.reversal ?? false,
+      reversalBind,
       params.reversal_reason ?? null,
       params.notes ?? null,
     ],
