@@ -413,6 +413,46 @@ const HERMES_TRUST_CEILING = 1.10;
  * HERMES_TRUST_CEILING] with small-sample dampening. Matches the style
  * of outcomeMultiplier in packages/core/src/intelligence/outcome-memory.ts.
  */
+/**
+ * Load per-decision unified outcome stats for a whole project.
+ *
+ * Reads from the Phase 14 ``decision_outcome_stats`` view when available —
+ * this is the canonical source once migration 058 is applied. Returns an
+ * empty map on SQLite (view is Postgres-only) and on any query error; in
+ * both cases compile falls back to the legacy ``decisions.outcome_success_rate``
+ * column, which is the pre-Phase-14 behaviour. The single-row helper
+ * ``getUnifiedOutcomeStats`` exists for one-off lookups; compile needs
+ * batch semantics so we do one scan per call here.
+ */
+async function loadUnifiedOutcomeStats(
+  projectId: string,
+): Promise<Map<string, { success_rate: number; total_count: number }>> {
+  const map = new Map<string, { success_rate: number; total_count: number }>();
+  const db = getDb();
+  if (db.dialect !== 'postgres') return map;
+  try {
+    const result = await db.query<{
+      decision_id: string;
+      success_rate: string | number;
+      total_count: string | number;
+    }>(
+      `SELECT decision_id, success_rate, total_count
+       FROM decision_outcome_stats WHERE project_id = ?`,
+      [projectId],
+    );
+    for (const row of result.rows) {
+      const rate = typeof row.success_rate === 'string' ? parseFloat(row.success_rate) : row.success_rate;
+      const total = typeof row.total_count === 'string' ? parseInt(row.total_count, 10) : row.total_count;
+      if (!Number.isFinite(rate) || !Number.isFinite(total)) continue;
+      map.set(row.decision_id, { success_rate: rate, total_count: total });
+    }
+  } catch {
+    // View missing (pre-058) or any query failure → empty map; caller falls
+    // back to the legacy column on each decision. Never propagate.
+  }
+  return map;
+}
+
 async function loadHermesTrustMultipliers(
   projectId: string,
 ): Promise<Map<string, number>> {
@@ -1205,6 +1245,27 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     { project_id },
     async () => loadHermesTrustMultipliers(project_id),
   );
+
+  // Phase 14: prefer the unified view for outcome stats when available.
+  // When the view has data for a decision, we override the decision's
+  // in-memory outcome_success_rate / outcome_count with the view values
+  // BEFORE scoring, so scoreDecision reads a single canonical source.
+  // When the view is empty for a decision, we leave the legacy column
+  // values in place (the migration-window fallback). Once migration 060
+  // drops the column, this override becomes the only path.
+  const unifiedStats = await withCoreSpan(
+    'compile.load_unified_outcomes',
+    { project_id },
+    async () => loadUnifiedOutcomeStats(project_id),
+  );
+  if (unifiedStats.size > 0) {
+    for (const d of allDecisions) {
+      const u = unifiedStats.get(d.id);
+      if (!u) continue;
+      (d as Decision & { outcome_success_rate?: number; outcome_count?: number }).outcome_success_rate = u.success_rate;
+      (d as Decision & { outcome_success_rate?: number; outcome_count?: number }).outcome_count = u.total_count;
+    }
+  }
 
   const scored = await withCoreSpan(
     'compile.score_decisions',
