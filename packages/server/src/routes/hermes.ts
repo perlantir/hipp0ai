@@ -29,6 +29,7 @@ import { attributeOutcomeToDecisions } from '@hipp0/core/intelligence/outcome-me
 import { requireUUID, requireString, optionalString, logAudit, mapDbError } from './validation.js';
 import { requireProjectAccess } from './_helpers.js';
 import { broadcast } from '../websocket.js';
+import { invalidateDecisionCaches } from '../cache/redis.js';
 import {
   HERMES_AGENT_NAME_RE,
   type HermesPlatform,
@@ -1008,6 +1009,18 @@ export function registerHermesRoutes(app: Hono): void {
       signal_source,
       recorded_at,
     });
+
+    // Fire-and-forget background re-rank: invalidate compile caches for this
+    // project so the next /api/compile re-scores decisions with the fresh
+    // hermes_outcomes trust multiplier in play. Do not await — response
+    // latency must not depend on cache eviction.
+    void (async () => {
+      try {
+        await invalidateDecisionCaches(project_id);
+      } catch (err) {
+        console.warn('[hipp0:hermes-outcomes] bg re-rank failed:', (err as Error).message);
+      }
+    })();
 
     return c.json({ outcome_id, recorded_at }, 201);
   });
