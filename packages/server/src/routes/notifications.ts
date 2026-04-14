@@ -3,12 +3,14 @@ import { getDb } from '@hipp0/core/db/index.js';
 import { parseNotification, parseSubscription } from '@hipp0/core/db/parsers.js';
 import { NotFoundError } from '@hipp0/core/types.js';
 import { requireUUID, requireString, optionalString, mapDbError } from './validation.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerNotificationRoutes(app: Hono): void {
   // Project-level notifications (all agents in project)
   app.get('/api/projects/:id/notifications', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
 
     const result = await db.query(
       `SELECT n.* FROM notifications n
@@ -38,6 +40,7 @@ export function registerNotificationRoutes(app: Hono): void {
   app.patch('/api/projects/:pid/notifications/:id', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('pid'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const id = requireUUID(c.req.param('id'), 'id');
 
     const result = await db.query(

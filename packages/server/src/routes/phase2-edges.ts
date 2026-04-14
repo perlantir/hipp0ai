@@ -8,6 +8,7 @@ import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
 import { NotFoundError, ValidationError } from '@hipp0/core/types.js';
 import { requireUUID, requireString, optionalString } from './validation.js';
+import { requireProjectAccess } from './_helpers.js';
 
 const VALID_EDGE_TYPES = ['depends_on', 'supersedes', 'related_to', 'blocks'] as const;
 
@@ -16,6 +17,7 @@ export function registerPhase2EdgeRoutes(app: Hono): void {
   app.post('/api/projects/:id/decisions/:did/p2edges', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const fromId = requireUUID(c.req.param('did'), 'decisionId');
 
     const body = await c.req.json<{
@@ -62,6 +64,7 @@ export function registerPhase2EdgeRoutes(app: Hono): void {
   app.get('/api/projects/:id/decisions/:did/p2edges', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const decisionId = requireUUID(c.req.param('did'), 'decisionId');
 
     const result = await db.query(
@@ -83,6 +86,7 @@ export function registerPhase2EdgeRoutes(app: Hono): void {
   app.delete('/api/projects/:id/decisions/:did/p2edges/:eid', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     requireUUID(c.req.param('did'), 'decisionId');
     const edgeId = requireUUID(c.req.param('eid'), 'edgeId');
 
@@ -102,6 +106,7 @@ export function registerPhase2EdgeRoutes(app: Hono): void {
   app.get('/api/projects/:id/decisions/:did/chain', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const decisionId = requireUUID(c.req.param('did'), 'decisionId');
     const maxDepth = Math.min(parseInt(c.req.query('depth') ?? '5', 10), 10);
 
