@@ -5,8 +5,13 @@ import { parseDecisionOutcome } from '../db/parsers.js';
 // Outcome multiplier bounds: 0.85 (poor track record) to 1.10 (strong track record)
 const OUTCOME_FLOOR = 0.85;
 const OUTCOME_CEILING = 1.10;
-// Minimum outcomes before the multiplier has meaningful effect
-const MIN_OUTCOMES_FOR_EFFECT = 1;
+// Minimum outcomes before the multiplier has any effect. Set to 2 (from 1)
+// to give a single accidental reaction no permanent influence on scoring;
+// one data point can't establish a track record. Combined with the 90-day
+// window on decision_outcome_stats (migration 061/sqlite-039) this means
+// a decision needs at least two corroborating signals inside the window
+// before the multiplier moves off neutral.
+const MIN_OUTCOMES_FOR_EFFECT = 2;
 
 /**
  * Record a decision-level outcome.
@@ -146,15 +151,30 @@ export async function getUnifiedOutcomeStats(
 
 export async function recomputeOutcomeAggregates(decisionId: string): Promise<void> {
   const db = getDb();
-  const stats = await getOutcomeStats(decisionId);
-
+  // Atomic read-and-write: a single UPDATE sourcing the aggregates from a
+  // correlated subquery against decision_outcomes. The previous impl did
+  //   stats = SELECT … ; UPDATE decisions SET … = stats.
+  // That lost updates under concurrent recordDecisionOutcome calls: two
+  // writers would each read the stale pre-insert aggregate, each write
+  // their own near-identical row, and only the last writer's count would
+  // survive. Folding both into one statement makes the update consistent
+  // with whatever rows exist in decision_outcomes at commit time.
+  const now = db.dialect === 'sqlite' ? "datetime('now')" : 'NOW()';
   await db.query(
     `UPDATE decisions
-     SET outcome_success_rate = ?,
-         outcome_count = ?,
-         updated_at = ${db.dialect === 'sqlite' ? "datetime('now')" : 'NOW()'}
+     SET
+       outcome_count = COALESCE((
+         SELECT COUNT(*) FROM decision_outcomes WHERE decision_id = ?
+       ), 0),
+       outcome_success_rate = COALESCE((
+         SELECT
+           CAST(SUM(CASE WHEN outcome_type = 'success' THEN 1 ELSE 0 END) AS ${db.dialect === 'sqlite' ? 'REAL' : 'FLOAT'})
+             / NULLIF(COUNT(*), 0)
+         FROM decision_outcomes WHERE decision_id = ?
+       ), 0),
+       updated_at = ${now}
      WHERE id = ?`,
-    [stats.success_rate, stats.total_outcomes, decisionId],
+    [decisionId, decisionId, decisionId],
   );
 }
 
@@ -175,10 +195,13 @@ export function outcomeMultiplier(
     return 1.0; // neutral — not enough data
   }
 
-  // Dampening factor: ramp from 0 to 1 as outcomes increase
-  // At MIN_OUTCOMES_FOR_EFFECT (3): factor = 0.33
-  // At 10: factor = 0.7
-  // At 20+: factor ≈ 1.0
+  // Dampening factor: ramp from 0 to 1 as outcomes increase.
+  // At 2 outcomes (the MIN_OUTCOMES_FOR_EFFECT floor): factor = 0.10
+  // At 10:                                            factor = 0.50
+  // At 20+:                                           factor = 1.00
+  // The linear ramp over 20 outcomes lets the multiplier strengthen as
+  // evidence accumulates without a single burst of reactions pinning a
+  // decision to the envelope extremes.
   const dampening = Math.min(1.0, outcomeCount / 20);
 
   // Center the rate around 0.5 (neutral)
