@@ -7,7 +7,91 @@
  */
 
 import { createHmac } from 'node:crypto';
+import * as dnsPromises from 'node:dns/promises';
 import { getDb } from '../db/index.js';
+
+/**
+ * Check whether an IPv4 or IPv6 address points at a private, loopback,
+ * link-local, or CGNAT range. Used as defense-in-depth against DNS
+ * rebinding: the create-time URL allowlist only sees the hostname; by
+ * the time we dispatch, a malicious DNS server can answer with an
+ * internal IP. Resolving immediately before fetch and re-checking
+ * defeats that trick.
+ *
+ * Also handles IPv4-mapped IPv6 ("::ffff:10.0.0.1") which would otherwise
+ * reach e.g. 10.0.0.1 via a v6 socket.
+ */
+function isPrivateIp(addr: string, family: number): boolean {
+  if (family === 4) return isPrivateIpv4(addr);
+  if (family === 6) {
+    const lower = addr.toLowerCase();
+    // IPv4-mapped: ::ffff:a.b.c.d
+    const mapped = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+    if (mapped) return isPrivateIpv4(mapped[1]);
+    // Loopback ::1
+    if (lower === '::1' || lower === '0:0:0:0:0:0:0:1') return true;
+    // Unspecified ::
+    if (lower === '::' || lower === '0:0:0:0:0:0:0:0') return true;
+    // Unique local fc00::/7 (fc.. or fd..)
+    if (/^f[cd][0-9a-f]{2}:/.test(lower)) return true;
+    // Link-local fe80::/10
+    if (/^fe[89ab][0-9a-f]:/.test(lower)) return true;
+    return false;
+  }
+  return false;
+}
+
+function isPrivateIpv4(addr: string): boolean {
+  const parts = addr.split('.').map((p) => parseInt(p, 10));
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n) || n < 0 || n > 255)) {
+    // Anything unparseable is suspect — reject.
+    return true;
+  }
+  const [a, b] = parts;
+  // 10.0.0.0/8
+  if (a === 10) return true;
+  // 172.16.0.0/12
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  // 192.168.0.0/16
+  if (a === 192 && b === 168) return true;
+  // 127.0.0.0/8 loopback
+  if (a === 127) return true;
+  // 169.254.0.0/16 link-local
+  if (a === 169 && b === 254) return true;
+  // 100.64.0.0/10 CGNAT
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  // 0.0.0.0/8
+  if (a === 0) return true;
+  return false;
+}
+
+/**
+ * Resolve a hostname and reject if ANY returned A/AAAA record points at
+ * a private, loopback, link-local, or CGNAT address. Throws on failure.
+ */
+async function assertPublicHostname(hostname: string): Promise<void> {
+  // Bare IP literals — classify directly without DNS.
+  // IPv4 literal
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname)) {
+    if (isPrivateIp(hostname, 4)) throw new Error(`Refusing webhook to private IP ${hostname}`);
+    return;
+  }
+  // IPv6 literal (possibly bracketed)
+  if (hostname.includes(':') || hostname.startsWith('[')) {
+    const stripped = hostname.replace(/^\[|\]$/g, '');
+    if (isPrivateIp(stripped, 6)) throw new Error(`Refusing webhook to private IP ${hostname}`);
+    return;
+  }
+  const records = await dnsPromises.lookup(hostname, { all: true, verbatim: true });
+  if (!records || records.length === 0) {
+    throw new Error(`DNS lookup for ${hostname} returned no records`);
+  }
+  for (const r of records) {
+    if (isPrivateIp(r.address, r.family)) {
+      throw new Error(`Refusing webhook: ${hostname} resolves to private IP ${r.address}`);
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -241,6 +325,13 @@ async function deliverWebhook(cfg: WebhookConfig, payload: WebhookPayload): Prom
       headers['X-Hipp0-Signature'] = signPayload(body, cfg.secret);
     }
 
+    // SSRF defense-in-depth: resolve the destination hostname and bail
+    // out if any resolved address is private / loopback / link-local / CGNAT.
+    // The URL allowlist at create time only inspects hostnames, which a
+    // malicious DNS server can rebind to internal IPs.
+    const parsedUrl = new URL(url);
+    await assertPublicHostname(parsedUrl.hostname);
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
@@ -321,6 +412,10 @@ export async function testWebhook(
     if (cfg.secret) {
       headers['X-Hipp0-Signature'] = signPayload(body, cfg.secret);
     }
+
+    // SSRF defense-in-depth (see deliverWebhook).
+    const parsedUrl = new URL(url);
+    await assertPublicHostname(parsedUrl.hostname);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
