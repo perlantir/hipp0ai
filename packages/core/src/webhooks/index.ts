@@ -353,8 +353,33 @@ async function deliverWebhook(cfg: WebhookConfig, payload: WebhookPayload): Prom
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[hipp0:webhook] Failed to deliver to "${cfg.name}": ${msg}`);
+    // Telegram URLs carry the bot_token in the path; any error surfaced by
+    // fetch (DNS, TLS, ECONNREFUSED, etc.) quotes the target URL back. Redact
+    // before logging so ops logs / error trackers don't leak the token.
+    const safeMsg = redactBotToken(msg);
+    const safeName = redactBotToken(cfg.name);
+    console.warn(`[hipp0:webhook] Failed to deliver to "${safeName}": ${safeMsg}`);
   }
+}
+
+/**
+ * Redact bot tokens from log-bound strings.
+ *
+ * Matches Telegram's bot path pattern (``/bot<id>:<secret>/``) and replaces
+ * the token portion with ``***``. Also catches generic ``bot_token=...`` /
+ * ``authorization: bearer ...`` leaks that upstream error messages sometimes
+ * interpolate. Safe on arbitrary input — returns the original string when
+ * nothing matches.
+ */
+export function redactBotToken(s: string): string {
+  if (!s) return s;
+  return s
+    // Telegram URL form: /bot123:ABCDEF/sendMessage
+    .replace(/\/bot\d+:[A-Za-z0-9_-]+/g, '/bot***REDACTED***')
+    // bot_token=... / bot_token: ... leaks (JSON bodies, query strings)
+    .replace(/(bot[_-]?token["'\s:=]+)[A-Za-z0-9:_-]+/gi, '$1***REDACTED***')
+    // Bearer/Authorization leaks
+    .replace(/(authorization["'\s:=]+bearer\s+)[A-Za-z0-9._-]+/gi, '$1***REDACTED***');
 }
 
 // ---------------------------------------------------------------------------
