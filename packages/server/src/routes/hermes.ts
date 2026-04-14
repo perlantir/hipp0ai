@@ -1078,6 +1078,19 @@ export function registerHermesRoutes(app: Hono): void {
       signal_source,
     });
 
+    // Invalidate compile caches BEFORE the websocket broadcast. A client that
+    // reacts to the broadcast by immediately calling /api/compile must see
+    // the refreshed ranking — if broadcast fires first, a fast client races
+    // the eviction and reads the stale context_cache row that was supposed
+    // to be evicted by this very reaction. Ordering matters: evict, then
+    // announce. We await here so the 201 response is the commitment that
+    // subsequent compiles will re-score.
+    try {
+      await invalidateDecisionCaches(project_id);
+    } catch (err) {
+      console.warn('[hipp0:hermes-outcomes] cache invalidation failed:', (err as Error).message);
+    }
+
     broadcast('hermes.outcome.recorded', {
       project_id,
       outcome_id,
@@ -1086,18 +1099,6 @@ export function registerHermesRoutes(app: Hono): void {
       signal_source,
       recorded_at,
     });
-
-    // Fire-and-forget background re-rank: invalidate compile caches for this
-    // project so the next /api/compile re-scores decisions with the fresh
-    // hermes_outcomes trust multiplier in play. Do not await — response
-    // latency must not depend on cache eviction.
-    void (async () => {
-      try {
-        await invalidateDecisionCaches(project_id);
-      } catch (err) {
-        console.warn('[hipp0:hermes-outcomes] bg re-rank failed:', (err as Error).message);
-      }
-    })();
 
     return c.json({ outcome_id, recorded_at }, 201);
   });
