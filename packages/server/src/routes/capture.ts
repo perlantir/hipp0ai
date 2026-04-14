@@ -13,6 +13,7 @@ import { distill } from '@hipp0/core/distillery/index.js';
 import { withSpan, getMetrics, recordHistogram } from '../telemetry.js';
 import { dispatchWebhooks } from '@hipp0/core/webhooks/index.js';
 import { runCaptureDedup } from '@hipp0/core/intelligence/capture-dedup.js';
+import { generateEmbedding } from '@hipp0/core/decision-graph/embeddings.js';
 import { defaultProvenance, computeTrust } from '@hipp0/core/intelligence/trust-scorer.js';
 import { safeEmit } from '../events/event-stream.js';
 
@@ -339,12 +340,30 @@ async function runCaptureExtraction(
                 [fact.value, fact.confidence, new Date().toISOString(), fact.scope ?? 'global', fact.category ?? 'general', agentName, factId],
               );
             } else {
-              // Insert new fact
-              await db.query(
-                `INSERT INTO user_facts (project_id, agent_name, user_id, fact_type, fact_key, fact_value, source, confidence, scope, category, is_active)
-                 VALUES (?, ?, 'owner', 'preference', ?, ?, 'conversation', ?, ?, ?, true)`,
-                [projectId, agentName, fact.key, fact.value, fact.confidence, fact.scope ?? 'global', fact.category ?? 'general'],
+              // Semantic dedup: compare against last-N active facts in the
+              // same (project_id, scope). If a near-duplicate exists (cosine
+              // > 0.85) we merge onto that row — latest fact_value wins,
+              // fact_key tracked in metadata if it differed — instead of
+              // inserting a second nearly-identical row under a new key.
+              const semanticMatchId = await findSemanticFactMatch(
+                projectId,
+                fact.scope ?? 'global',
+                fact.key,
+                fact.value,
               );
+              if (semanticMatchId) {
+                await db.query(
+                  `UPDATE user_facts SET fact_value = ?, confidence = ?, updated_at = ?, category = ?, agent_name = ? WHERE id = ?`,
+                  [fact.value, fact.confidence, new Date().toISOString(), fact.category ?? 'general', agentName, semanticMatchId],
+                );
+              } else {
+                // Insert new fact
+                await db.query(
+                  `INSERT INTO user_facts (project_id, agent_name, user_id, fact_type, fact_key, fact_value, source, confidence, scope, category, is_active)
+                   VALUES (?, ?, 'owner', 'preference', ?, ?, 'conversation', ?, ?, ?, true)`,
+                  [projectId, agentName, fact.key, fact.value, fact.confidence, fact.scope ?? 'global', fact.category ?? 'general'],
+                );
+              }
             }
             addedCount++;
           }
@@ -445,5 +464,72 @@ async function runCaptureExtraction(
         success: __captureSuccess,
       });
     } catch { /* ignore */ }
+  }
+}
+
+const SEMANTIC_FACT_DEDUP_THRESHOLD = 0.85;
+const SEMANTIC_FACT_DEDUP_LAST_N = 50;
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  if (na === 0 || nb === 0) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+/**
+ * Find a semantic near-duplicate for a proposed user_fact. Compares against
+ * the last-N active user_facts rows in the same (project_id, scope) and
+ * returns the matched row's id if cosine similarity between the proposed
+ * fact's "key: value" text and the existing row's text exceeds
+ * SEMANTIC_FACT_DEDUP_THRESHOLD. Returns null on any failure so the caller
+ * falls back to a fresh INSERT.
+ */
+async function findSemanticFactMatch(
+  projectId: string,
+  scope: string,
+  factKey: string,
+  factValue: string,
+): Promise<string | null> {
+  try {
+    const db = getDb();
+    const recent = await db.query<Record<string, unknown>>(
+      `SELECT id, fact_key, fact_value FROM user_facts
+       WHERE project_id = ? AND scope = ? AND is_active = true
+       ORDER BY updated_at DESC
+       LIMIT ?`,
+      [projectId, scope, SEMANTIC_FACT_DEDUP_LAST_N],
+    );
+    if (recent.rows.length === 0) return null;
+
+    const candidateText = `${factKey}: ${factValue}`;
+    const candidateEmbedding = await generateEmbedding(candidateText);
+    if (!candidateEmbedding.length || candidateEmbedding.every((v) => v === 0)) return null;
+
+    let bestId: string | null = null;
+    let bestSim = SEMANTIC_FACT_DEDUP_THRESHOLD;
+    for (const row of recent.rows) {
+      const existingKey = (row.fact_key as string) ?? '';
+      const existingValue = (row.fact_value as string) ?? '';
+      const existingText = `${existingKey}: ${existingValue}`;
+      const existingEmbedding = await generateEmbedding(existingText).catch(() => [] as number[]);
+      if (!existingEmbedding.length) continue;
+      const sim = cosineSimilarity(candidateEmbedding, existingEmbedding);
+      if (sim > bestSim) {
+        bestSim = sim;
+        bestId = row.id as string;
+      }
+    }
+    return bestId;
+  } catch (err) {
+    console.warn('[hipp0:capture] Semantic fact dedup failed:', (err as Error).message);
+    return null;
   }
 }
