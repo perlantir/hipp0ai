@@ -5,11 +5,13 @@ import { NotFoundError, ValidationError } from '@hipp0/core/types.js';
 import { requireUUID, optionalString } from './validation.js';
 import { broadcast } from '../websocket.js';
 import { safeEmit } from '../events/event-stream.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerContradictionRoutes(app: Hono): void {
   app.get('/api/projects/:id/contradictions', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const status = c.req.query('status') ?? 'unresolved';
     const result = await db.query(
       'SELECT * FROM contradictions WHERE project_id = ? AND status = ? ORDER BY detected_at DESC',
@@ -29,6 +31,7 @@ export function registerContradictionRoutes(app: Hono): void {
     }>();
 
     const projectId = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, projectId);
 
     const statusVal = body.status !== undefined ? optionalString(body.status, 'status', 50) : null;
     const resolvedByVal =
