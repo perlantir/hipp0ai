@@ -22,6 +22,16 @@ vi.mock('../src/db/index.js', () => ({
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
+  // Mock dns.promises.lookup so webhook hostname checks don't hit real DNS.
+// Resolve all hostnames to a public IP (example.com's public address).
+const { dnsLookupMock } = vi.hoisted(() => ({
+  dnsLookupMock: vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]),
+}));
+vi.mock('node:dns/promises', () => ({
+  default: { lookup: dnsLookupMock },
+  lookup: dnsLookupMock,
+}));
+
   // Import module under test
 import {
   dispatchWebhooks,
@@ -258,6 +268,103 @@ describe('Webhook Dispatcher', () => {
       const signature = signPayload(body, secret);
       const expected = createHmac('sha256', secret).update(body).digest('hex');
       expect(signature).toBe(expected);
+    });
+  });
+
+  describe('SSRF defense: runtime DNS check', () => {
+    it('refuses delivery when hostname resolves to a private IP (10/8)', async () => {
+      dnsLookupMock.mockResolvedValueOnce([{ address: '10.0.0.5', family: 4 }]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow({ url: 'https://attacker.example.com/webhook' })],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses delivery when hostname resolves to loopback (127/8)', async () => {
+      dnsLookupMock.mockResolvedValueOnce([{ address: '127.0.0.1', family: 4 }]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow({ url: 'https://rebind.example.com/webhook' })],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses delivery for CGNAT (100.64/10)', async () => {
+      dnsLookupMock.mockResolvedValueOnce([{ address: '100.80.0.1', family: 4 }]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow()],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses IPv4-mapped IPv6 loopback (::ffff:127.0.0.1)', async () => {
+      dnsLookupMock.mockResolvedValueOnce([{ address: '::ffff:127.0.0.1', family: 6 }]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow()],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('refuses IPv6 unique-local (fd00::/8)', async () => {
+      dnsLookupMock.mockResolvedValueOnce([{ address: 'fd12:3456:789a::1', family: 6 }]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow()],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects if ANY resolved A record is private (mixed-record DNS rebinding)', async () => {
+      dnsLookupMock.mockResolvedValueOnce([
+        { address: '93.184.216.34', family: 4 },
+        { address: '169.254.169.254', family: 4 },
+      ]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow()],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('allows delivery when hostname resolves to a public IP', async () => {
+      mockFetch.mockResolvedValue({ ok: true, status: 200, statusText: 'OK' });
+      dnsLookupMock.mockResolvedValueOnce([{ address: '8.8.8.8', family: 4 }]);
+      mockQuery.mockResolvedValueOnce({
+        rows: [makeWebhookRow()],
+        rowCount: 1,
+      });
+      await dispatchWebhooks('proj-123', 'contradiction_detected', {
+        decision_a_title: 'A',
+        decision_b_title: 'B',
+      });
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 });
