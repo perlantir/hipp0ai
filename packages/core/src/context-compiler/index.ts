@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
 import { getDb } from '../db/index.js';
 import { getPersona as _getPersonaImport } from '../config/agentPersonas.js';
 import type { AgentPersona } from '../config/agentPersonas.js';
@@ -709,8 +710,39 @@ async function writeCache(
 
 // --- Token budget packing ---
 
-/** Rough token estimate: chars / 4 */
+// Lazy-init cl100k_base encoder. js-tiktoken is pure JS (no native build)
+// and caches its BPE ranks on first use. We wrap it in a memoized helper
+// and fall back to chars/4 on any failure so token counting is never a
+// hard dependency in the compile hot path.
+let _tiktokenEncoder: { encode: (s: string) => { length: number } } | null = null;
+let _tiktokenTried = false;
+function getTiktokenEncoder(): { encode: (s: string) => { length: number } } | null {
+  if (_tiktokenEncoder || _tiktokenTried) return _tiktokenEncoder;
+  _tiktokenTried = true;
+  try {
+    const req = createRequire(import.meta.url);
+    const mod = req('js-tiktoken') as {
+      getEncoding: (name: string) => { encode: (s: string) => number[] };
+    };
+    const enc = mod.getEncoding('cl100k_base');
+    _tiktokenEncoder = { encode: (s: string) => enc.encode(s) };
+  } catch {
+    _tiktokenEncoder = null;
+  }
+  return _tiktokenEncoder;
+}
+
+/** Token count via cl100k_base tiktoken, falling back to chars/4. */
 function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const enc = getTiktokenEncoder();
+  if (enc) {
+    try {
+      return enc.encode(text).length;
+    } catch {
+      // fall through to the heuristic
+    }
+  }
   return Math.ceil(text.length / 4);
 }
 
