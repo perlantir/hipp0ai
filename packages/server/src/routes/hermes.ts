@@ -671,13 +671,42 @@ export function registerHermesRoutes(app: Hono): void {
     const ifMatch = c.req.header('If-Match');
     if (ifMatch && currentVersion && ifMatch !== currentVersion) {
       return c.json(
-        { error: { code: 'CONFLICT', message: 'If-Match does not match current version', current_version: currentVersion } },
+        { error: 'version_conflict', current_version: currentVersion },
         409,
       );
     }
 
     const newVersion = crypto.randomUUID();
     const now = new Date().toISOString();
+
+    // Atomic compare-and-swap: when the caller supplied If-Match AND rows
+    // already exist, claim them in a single UPDATE guarded by
+    // `version = ifMatch`. If two concurrent requests share the same
+    // If-Match, only the first bumps `version`; the second's UPDATE affects
+    // zero rows and we return 409 `version_conflict`. This is the
+    // serialization point that makes the write race-safe.
+    if (ifMatch && currentVersion) {
+      const claim = await db.query(
+        `UPDATE hermes_user_facts
+            SET version = ?, updated_at = ?
+          WHERE project_id = ? AND external_user_id = ? AND version = ?`,
+        [newVersion, now, project_id, external_user_id, ifMatch],
+      );
+      if ((claim.rowCount ?? 0) === 0) {
+        // Someone else won the race — re-read current version for the body.
+        const reread = await db.query(
+          `SELECT version FROM hermes_user_facts
+            WHERE project_id = ? AND external_user_id = ?
+            ORDER BY updated_at DESC
+            LIMIT 1`,
+          [project_id, external_user_id],
+        );
+        const latest = reread.rows.length > 0
+          ? (reread.rows[0] as Record<string, unknown>).version as string
+          : currentVersion;
+        return c.json({ error: 'version_conflict', current_version: latest }, 409);
+      }
+    }
 
     for (const fact of facts) {
       if (fact.additive) {
@@ -694,7 +723,9 @@ export function registerHermesRoutes(app: Hono): void {
           [rowId, project_id, external_user_id, derivedKey, fact.value, fact.source ?? null, newVersion, now],
         );
       } else {
-        // Replace-style upsert on (project_id, external_user_id, key)
+        // Replace-style upsert on (project_id, external_user_id, key).
+        // When If-Match was provided, the CAS above already bumped existing
+        // rows to `newVersion`; this UPDATE is the per-key value rewrite.
         const existing = await db.query(
           `SELECT id FROM hermes_user_facts
             WHERE project_id = ? AND external_user_id = ? AND key = ?`,
