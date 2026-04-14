@@ -201,6 +201,7 @@ export const authMiddleware: MiddlewareHandler = createMiddleware(async (c, next
     const result = await db.query(
       `SELECT id, project_id FROM api_keys
        WHERE key_hash = ?
+         AND revoked_at IS NULL
          AND (expires_at IS NULL OR expires_at > ${nowExpr})`,
       [tokenHash],
     );
