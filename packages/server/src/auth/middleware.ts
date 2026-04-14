@@ -134,7 +134,7 @@ async function authenticateApiKey(token: string, c: Context): Promise<AuthUser |
   const result = await db.query(
     `SELECT ak.*, t.plan FROM api_keys ak
      JOIN tenants t ON t.id = ak.tenant_id
-     WHERE ak.key_hash = ?`,
+     WHERE ak.key_hash = ? AND ak.revoked_at IS NULL`,
     [hash],
   );
 
