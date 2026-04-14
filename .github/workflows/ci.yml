@@ -121,6 +121,13 @@ jobs:
       - name: Run benchmark suite
         run: npx tsx benchmarks/runner.ts --suite all
 
+      - name: scoreDecision microbench (Phase 11 perf gate)
+        # Fails the job if scoreDecision P95 regresses beyond the tolerance
+        # recorded in packages/core/bench/budgets.json. Intentionally separate
+        # from the broader benchmark suite so regressions in hot-path scoring
+        # surface with a clear signal.
+        run: pnpm --filter @hipp0/core bench
+
   python-sdk:
     runs-on: ubuntu-latest
 
