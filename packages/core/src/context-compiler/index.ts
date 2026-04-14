@@ -42,6 +42,53 @@ let _embeddingImportFailed = false;
 
 const ZERO_VECTOR: number[] = new Array(1536).fill(0) as number[];
 
+// In-process cache for task embeddings. Embeddings are deterministic
+// functions of the task description alone (agent/project do not affect
+// the vector), so repeat compiles for the same task text skip the
+// embeddings API round-trip entirely. Bounded LRU keyed by sha256 of
+// the task description; entries expire after TASK_EMBEDDING_TTL_MS.
+// Never caches zero-vector fallbacks so a transient API failure does
+// not poison future compiles.
+const TASK_EMBEDDING_TTL_MS = 10 * 60_000;   // 10 minutes
+const TASK_EMBEDDING_MAX_ENTRIES = 500;
+const taskEmbeddingCache = new Map<string, { vec: number[]; expiresAt: number }>();
+
+function taskEmbeddingKey(task: string): string {
+  return crypto.createHash('sha256').update(task).digest('hex');
+}
+
+function readTaskEmbeddingCache(task: string): number[] | null {
+  const key = taskEmbeddingKey(task);
+  const entry = taskEmbeddingCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    taskEmbeddingCache.delete(key);
+    return null;
+  }
+  // LRU touch
+  taskEmbeddingCache.delete(key);
+  taskEmbeddingCache.set(key, entry);
+  return entry.vec;
+}
+
+function writeTaskEmbeddingCache(task: string, vec: number[]): void {
+  // Don't cache zero-vector fallbacks — they'd block real embeddings
+  // from being cached once the upstream API recovers.
+  let nonZero = false;
+  for (let i = 0; i < vec.length; i++) {
+    if (vec[i] !== 0) { nonZero = true; break; }
+  }
+  if (!nonZero) return;
+  const key = taskEmbeddingKey(task);
+  taskEmbeddingCache.set(key, { vec, expiresAt: Date.now() + TASK_EMBEDDING_TTL_MS });
+  // Evict oldest when over capacity (Map iteration is insertion order)
+  while (taskEmbeddingCache.size > TASK_EMBEDDING_MAX_ENTRIES) {
+    const oldest = taskEmbeddingCache.keys().next().value;
+    if (oldest === undefined) break;
+    taskEmbeddingCache.delete(oldest);
+  }
+}
+
 async function getEmbeddingFn(): Promise<(text: string) => Promise<number[]>> {
   if (_generateEmbedding) return _generateEmbedding;
   try {
@@ -1037,16 +1084,25 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   const allDecisionMap = new Map<string, Decision>(allDecisions.map((d) => [d.id, d]));
 
-  const generateEmbedding = await getEmbeddingFn();
+  // Task embedding — check in-process LRU before calling out to the
+  // embeddings API. Embeddings depend only on task_description, so the
+  // cache is safely shared across agents and projects.
   let taskEmbedding: number[];
-  try {
-    taskEmbedding = await generateEmbedding(task_description);
-  } catch (err) {
-    // Graceful degradation: if embedding generation fails (API down, rate limit,
-    // network error), continue scoring without semantic similarity rather than
-    // crashing the entire compile request.
-    console.warn(`[hipp0/compile] Embedding generation failed for agent=${agent_name} — falling back to non-semantic scoring:`, (err as Error).message);
-    taskEmbedding = [...ZERO_VECTOR];
+  const cachedEmbedding = readTaskEmbeddingCache(task_description);
+  if (cachedEmbedding) {
+    taskEmbedding = cachedEmbedding;
+  } else {
+    const generateEmbedding = await getEmbeddingFn();
+    try {
+      taskEmbedding = await generateEmbedding(task_description);
+      writeTaskEmbeddingCache(task_description, taskEmbedding);
+    } catch (err) {
+      // Graceful degradation: if embedding generation fails (API down, rate limit,
+      // network error), continue scoring without semantic similarity rather than
+      // crashing the entire compile request.
+      console.warn(`[hipp0/compile] Embedding generation failed for agent=${agent_name} — falling back to non-semantic scoring:`, (err as Error).message);
+      taskEmbedding = [...ZERO_VECTOR];
+    }
   }
 
   // Infer domain from task for domain-aware scoring boost
