@@ -1058,6 +1058,11 @@ export function registerHermesRoutes(app: Hono): void {
             outcome_type,
             outcome_score,
             notes: note ?? undefined,
+            // Restrict attribution to the snippets the client actually
+            // reacted to. Without this, a reaction on one snippet would
+            // spread to every decision in the brief — or a buggy client
+            // could stuff arbitrary ids and skew scoring project-wide.
+            snippet_ids,
           });
         }
       }

@@ -229,6 +229,18 @@ export async function attributeOutcomeToDecisions(params: {
   outcome_score: number;
   task_session_id?: string;
   notes?: string;
+  /**
+   * Optional: client-asserted list of decision ids the reaction refers to
+   * (from hermes_outcomes.snippet_ids_json). When provided, attribution is
+   * restricted to the INTERSECTION of this list and the decisions that
+   * were actually included in the compile_history brief. This prevents a
+   * reaction from rewarding/punishing decisions that weren't cited in
+   * the brief the user reacted to, and prevents a buggy/malicious client
+   * from stuffing arbitrary ids and skewing scoring. When omitted (legacy
+   * /api/outcomes path), all decisions in the compile_history are
+   * attributed as before.
+   */
+  snippet_ids?: string[];
 }): Promise<number> {
   const db = getDb();
 
@@ -249,6 +261,14 @@ export async function attributeOutcomeToDecisions(params: {
   }
 
   if (decisionIds.length === 0) return 0;
+
+  // Restrict to the intersection of compile_history.decision_ids and the
+  // caller's snippet_ids (when provided). See the param docstring above.
+  if (params.snippet_ids && params.snippet_ids.length > 0) {
+    const allow = new Set(params.snippet_ids);
+    decisionIds = decisionIds.filter((id) => allow.has(id));
+    if (decisionIds.length === 0) return 0;
+  }
 
   // Parse decision_scores to get per-decision relevance
   let decisionScores: Record<string, number> = {};
