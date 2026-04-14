@@ -25,6 +25,7 @@
 import crypto from 'node:crypto';
 import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
+import { attributeOutcomeToDecisions } from '@hipp0/core/intelligence/outcome-memory.js';
 import { requireUUID, requireString, optionalString, logAudit, mapDbError } from './validation.js';
 import { requireProjectAccess } from './_helpers.js';
 import { broadcast } from '../websocket.js';
@@ -949,6 +950,46 @@ export function registerHermesRoutes(app: Hono): void {
     } catch (err) {
       mapDbError(err);
       return; // unreachable — mapDbError always throws
+    }
+
+    // Close the outcome→learning loop: attribute this reinforcement signal
+    // to the decisions used in the most recent compile_history for the
+    // session's agent+project. hermes_outcomes carries an opaque session_id
+    // and snippet_ids, neither of which directly identify decisions, so we
+    // look up the agent from hermes_conversations and pick the latest
+    // compile_history row for that agent+project at or before the outcome
+    // time. Failure here must not break the outcome write.
+    try {
+      const convResult = await db.query<Record<string, unknown>>(
+        'SELECT agent_id FROM hermes_conversations WHERE session_id = ?',
+        [session_id],
+      );
+      const agent_id = convResult.rows[0]?.agent_id as string | undefined;
+      if (agent_id) {
+        const chResult = await db.query<Record<string, unknown>>(
+          `SELECT id FROM compile_history
+           WHERE project_id = ? AND agent_id = ? AND compiled_at <= ?
+           ORDER BY compiled_at DESC LIMIT 1`,
+          [project_id, agent_id, recorded_at],
+        );
+        const compile_history_id = chResult.rows[0]?.id as string | undefined;
+        if (compile_history_id) {
+          const outcome_type =
+            outcome === 'positive' ? 'success' : outcome === 'negative' ? 'failure' : 'partial';
+          const outcome_score =
+            outcome === 'positive' ? 0.9 : outcome === 'negative' ? 0.1 : 0.5;
+          await attributeOutcomeToDecisions({
+            compile_history_id,
+            project_id,
+            agent_id,
+            outcome_type,
+            outcome_score,
+            notes: note ?? undefined,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[hipp0:hermes-outcomes] Decision attribution failed:', (err as Error).message);
     }
 
     logAudit('hermes_outcome_recorded', project_id, {
