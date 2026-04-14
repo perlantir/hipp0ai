@@ -57,6 +57,9 @@ const subscribers = new Map<string, Set<WebSocket>>();
 /** Max subscribers per project — prevents runaway memory growth */
 const MAX_SUBSCRIBERS_PER_PROJECT = 100;
 
+/** Drop payloads for clients whose buffered outbound data exceeds this. */
+const WS_BACKPRESSURE_DROP_BYTES = 1024 * 1024;
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -73,11 +76,28 @@ export function emitEvent(event: MemoryEvent): void {
 
     const payload = JSON.stringify(event);
     const dead: WebSocket[] = [];
+    const sends: Promise<void>[] = [];
 
     for (const ws of clients) {
       if (ws.readyState === WebSocket.OPEN) {
+        if (ws.bufferedAmount > WS_BACKPRESSURE_DROP_BYTES) {
+          console.warn(
+            `[hipp0/events] Dropping event for slow client — bufferedAmount=${ws.bufferedAmount} type=${event.type}`,
+          );
+          continue;
+        }
         try {
-          ws.send(payload);
+          sends.push(
+            new Promise<void>((resolve) => {
+              ws.send(payload, (err) => {
+                if (err) {
+                  // Mark dead on send error; cleanup happens after drain
+                  dead.push(ws);
+                }
+                resolve();
+              });
+            }),
+          );
         } catch {
           dead.push(ws);
         }
@@ -88,6 +108,10 @@ export function emitEvent(event: MemoryEvent): void {
         dead.push(ws);
       }
     }
+
+    // Fan out in parallel — emitEvent is fire-and-forget but Promise.all
+    // lets the event loop overlap TCP writes across clients.
+    void Promise.all(sends);
 
     // Clean up any dead sockets encountered
     for (const ws of dead) clients.delete(ws);

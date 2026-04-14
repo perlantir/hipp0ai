@@ -19,14 +19,22 @@ function safeEqual(a: Buffer, b: Buffer): boolean {
 }
 
 function getClientIp(c: Context): string {
-  // Only trust X-Forwarded-For when behind a known proxy
+  // Proxy headers are only trusted when HIPP0_TRUSTED_PROXY=true. Otherwise
+  // callers could spoof x-forwarded-for / x-real-ip to bypass per-IP rate
+  // limits and auth-failure lockout. X-Forwarded-For uses the leftmost
+  // entry (the original client) — not rightmost, which would be the proxy.
   if (process.env.HIPP0_TRUSTED_PROXY === 'true') {
     const forwarded = c.req.header('x-forwarded-for');
     if (forwarded) {
       return forwarded.split(',')[0]?.trim() ?? 'unknown';
     }
+    const realIp = c.req.header('x-real-ip');
+    if (realIp) return realIp.trim();
   }
-  return c.req.header('x-real-ip') ?? 'unknown';
+  // Fall back to the socket remote address. Hono node adapter exposes the
+  // IncomingMessage via c.env.incoming.
+  const env = (c as unknown as { env?: { incoming?: { socket?: { remoteAddress?: string } } } }).env;
+  return env?.incoming?.socket?.remoteAddress ?? 'unknown';
 }
 
 // Sanitise PostgreSQL errors — strip table/column/constraint names
@@ -193,6 +201,7 @@ export const authMiddleware: MiddlewareHandler = createMiddleware(async (c, next
     const result = await db.query(
       `SELECT id, project_id FROM api_keys
        WHERE key_hash = ?
+         AND revoked_at IS NULL
          AND (expires_at IS NULL OR expires_at > ${nowExpr})`,
       [tokenHash],
     );

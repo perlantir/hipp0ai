@@ -6,7 +6,7 @@ import { parseDecisionOutcome } from '../db/parsers.js';
 const OUTCOME_FLOOR = 0.85;
 const OUTCOME_CEILING = 1.10;
 // Minimum outcomes before the multiplier has meaningful effect
-const MIN_OUTCOMES_FOR_EFFECT = 3;
+const MIN_OUTCOMES_FOR_EFFECT = 1;
 
 /**
  * Record a decision-level outcome.
@@ -27,6 +27,9 @@ export async function recordDecisionOutcome(params: {
   const id = (await import('node:crypto')).randomUUID();
   const score = Math.max(0, Math.min(1, params.outcome_score));
 
+  // SQLite cannot bind booleans — cast to 0/1 at the edge. Postgres accepts
+  // both but the integer form is safe across both dialects.
+  const reversalBind = (params.reversal ?? false) ? 1 : 0;
   await db.query(
     `INSERT INTO decision_outcomes
      (id, decision_id, project_id, agent_id, compile_history_id, task_session_id,
@@ -41,7 +44,7 @@ export async function recordDecisionOutcome(params: {
       params.task_session_id ?? null,
       params.outcome_type,
       score,
-      params.reversal ?? false,
+      reversalBind,
       params.reversal_reason ?? null,
       params.notes ?? null,
     ],
@@ -111,6 +114,37 @@ export async function getOutcomeStats(decisionId: string): Promise<OutcomeStats>
  * Recompute and persist cached outcome aggregates on the decision row.
  * Called after every new outcome is recorded.
  */
+/**
+ * Read per-decision outcome stats from the unified ``decision_outcome_stats``
+ * view (migration 058, Phase 14). Returns null when the view is absent
+ * (older SQLite databases — the view is Postgres-only) or when the decision
+ * has no matching rows in hermes_outcomes. Callers should combine this with
+ * the legacy decisions.outcome_success_rate column until the deprecation
+ * window closes and the column is dropped.
+ */
+export async function getUnifiedOutcomeStats(
+  decisionId: string,
+): Promise<{ success_rate: number; total_count: number } | null> {
+  const db = getDb();
+  if (db.dialect !== 'postgres') return null;
+  try {
+    const result = await db.query<{ success_rate: string | number; total_count: string | number }>(
+      `SELECT success_rate, total_count FROM decision_outcome_stats WHERE decision_id = ?`,
+      [decisionId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const rate = typeof row.success_rate === 'string' ? parseFloat(row.success_rate) : row.success_rate;
+    const total = typeof row.total_count === 'string' ? parseInt(row.total_count, 10) : row.total_count;
+    if (!Number.isFinite(rate) || !Number.isFinite(total)) return null;
+    return { success_rate: rate, total_count: total };
+  } catch {
+    // View missing (pre-058 database) or any read failure → null tells the
+    // caller to fall back to the legacy column. Never throw to callers.
+    return null;
+  }
+}
+
 export async function recomputeOutcomeAggregates(decisionId: string): Promise<void> {
   const db = getDb();
   const stats = await getOutcomeStats(decisionId);

@@ -526,6 +526,18 @@ export interface ContextPackage {
   loading_layers?: { l0_count: number; l1_count: number; l2_available: number };
   wing_sources?: Record<string, number>;
   suggested_patterns: SuggestedPattern[];
+  /**
+   * Audit trail for decisions dropped during filter+pack. Capped at 200
+   * entries to bound response size. Reasons:
+   *   - "below_threshold": combined_score < MIN_SCORE (or request.min_score)
+   *   - "over_budget":     passed threshold but didn't fit MAX_RESULTS cap
+   *   - "duplicate":       title-normalised duplicate of a higher-scored sibling
+   */
+  filtered?: Array<{
+    decision_id: string;
+    reason: 'below_threshold' | 'over_budget' | 'duplicate';
+    score: number;
+  }>;
 }
 
 // --- Contradictions ---

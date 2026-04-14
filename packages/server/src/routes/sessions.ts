@@ -18,6 +18,7 @@ import { getDb } from '@hipp0/core/db/index.js';
 import { compileContext } from '@hipp0/core/context-compiler/index.js';
 import type { CompileRequest } from '@hipp0/core/types.js';
 import { cache, CACHE_TTL } from '../cache/redis.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerSessionRoutes(app: Hono): void {
     // Start a new task session
@@ -29,6 +30,7 @@ export function registerSessionRoutes(app: Hono): void {
     }>();
 
     const project_id = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, project_id);
     const title = requireString(body.title, 'title', 500);
     const description = optionalString(body.description, 'description', 5000);
 
@@ -72,14 +74,12 @@ export function registerSessionRoutes(app: Hono): void {
     const output = requireString(body.output, 'output', 500000);
     const agent_role = optionalString(body.agent_role, 'agent_role', 200);
 
-    // Get project_id from session if not provided
-    let project_id: string;
-    if (body.project_id) {
-      project_id = requireUUID(body.project_id, 'project_id');
-    } else {
-      const state = await getSessionState(sessionId);
-      project_id = state.session.project_id;
-    }
+    // Resolve project_id from the session — the authoritative tenancy
+    // boundary — and enforce tenant access before any write. Any
+    // client-supplied project_id is ignored to avoid cross-tenant writes.
+    const state = await getSessionState(sessionId);
+    const project_id = state.session.project_id;
+    await requireProjectAccess(c, project_id);
 
     try {
       const result = await recordStep({
@@ -165,6 +165,7 @@ export function registerSessionRoutes(app: Hono): void {
     const sessionId = requireUUID(c.req.param('id'), 'session_id');
     try {
       const state = await getSessionState(sessionId);
+      await requireProjectAccess(c, state.session.project_id);
       return c.json(state);
     } catch (err) {
       if ((err as Error).message?.includes('not found')) {
@@ -182,6 +183,7 @@ export function registerSessionRoutes(app: Hono): void {
 
     // Get project_id from session
     const state = await getSessionState(sessionId);
+    await requireProjectAccess(c, state.session.project_id);
     const ctx = await getSessionContext(sessionId, agentName, task, state.session.project_id);
     return c.json(ctx);
   });
@@ -189,6 +191,8 @@ export function registerSessionRoutes(app: Hono): void {
     // Pause session
   app.post('/api/tasks/session/:id/pause', async (c) => {
     const sessionId = requireUUID(c.req.param('id'), 'session_id');
+    const pre = await getSessionState(sessionId);
+    await requireProjectAccess(c, pre.session.project_id);
     const session = await updateSessionStatus(sessionId, 'paused');
     logAudit('session_paused', session.project_id, { session_id: sessionId });
     return c.json(session);
@@ -197,6 +201,8 @@ export function registerSessionRoutes(app: Hono): void {
     // Resume session
   app.post('/api/tasks/session/:id/resume', async (c) => {
     const sessionId = requireUUID(c.req.param('id'), 'session_id');
+    const pre = await getSessionState(sessionId);
+    await requireProjectAccess(c, pre.session.project_id);
     const session = await updateSessionStatus(sessionId, 'active');
     logAudit('session_resumed', session.project_id, { session_id: sessionId });
     return c.json(session);
@@ -205,6 +211,8 @@ export function registerSessionRoutes(app: Hono): void {
     // Complete session
   app.post('/api/tasks/session/:id/complete', async (c) => {
     const sessionId = requireUUID(c.req.param('id'), 'session_id');
+    const pre = await getSessionState(sessionId);
+    await requireProjectAccess(c, pre.session.project_id);
     const session = await updateSessionStatus(sessionId, 'completed');
     logAudit('session_completed', session.project_id, { session_id: sessionId });
     return c.json(session);
@@ -213,6 +221,7 @@ export function registerSessionRoutes(app: Hono): void {
     // List sessions for a project
   app.get('/api/projects/:id/sessions-live', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     const status = c.req.query('status') ?? undefined;
     const sessions = await listProjectSessions(projectId, status);
     return c.json(sessions);
@@ -225,6 +234,7 @@ export function registerSessionRoutes(app: Hono): void {
     // Get project_id from session
     const state = await getSessionState(sessionId);
     const projectId = state.session.project_id;
+    await requireProjectAccess(c, projectId);
 
     try {
       const suggestion = await suggestNextAgent(sessionId, projectId);
@@ -251,6 +261,7 @@ export function registerSessionRoutes(app: Hono): void {
 
     const state = await getSessionState(sessionId);
     const projectId = state.session.project_id;
+    await requireProjectAccess(c, projectId);
 
     try {
       const plan = await generateSessionPlan(sessionId, projectId);
@@ -286,6 +297,7 @@ export function registerSessionRoutes(app: Hono): void {
 
     const state = await getSessionState(sessionId);
     const projectId = state.session.project_id;
+    await requireProjectAccess(c, projectId);
 
     // Get the current suggestion to record what was suggested
     let suggestedAgent = acceptedAgent;
@@ -344,6 +356,9 @@ export function registerSessionRoutes(app: Hono): void {
     const context_summary = requireString(body.context_summary, 'context_summary', 100000);
     const importantDecisions = body.important_decisions ?? [];
 
+    const pre = await getSessionState(sessionId);
+    await requireProjectAccess(c, pre.session.project_id);
+
     const db = getDb();
 
     try {
@@ -377,6 +392,7 @@ export function registerSessionRoutes(app: Hono): void {
     // Project settings (prefetch config)
   app.get('/api/projects/:id/settings', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     const db = getDb();
 
     const result = await db.query('SELECT metadata FROM projects WHERE id = ?', [projectId]);
@@ -403,6 +419,7 @@ export function registerSessionRoutes(app: Hono): void {
 
   app.patch('/api/projects/:id/settings', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     const body = await c.req.json<Record<string, unknown>>();
     const db = getDb();
 
@@ -420,8 +437,22 @@ export function registerSessionRoutes(app: Hono): void {
       metadata = raw as Record<string, unknown>;
     }
 
-    // Merge new settings
-    const updated = { ...metadata, ...body };
+    // Merge new settings — whitelist the keys that clients are allowed to
+    // write. Blindly spreading `body` on top of `metadata` would let a caller
+    // overwrite any metadata key (including ones set server-side), and opens
+    // a __proto__ pollution pathway via JSON input.
+    const ALLOWED_SETTINGS_KEYS = new Set([
+      'prefetch_enabled',
+      'prefetch_agent_count',
+      'auto_capture',
+      'share_anonymous_patterns',
+    ]);
+    const updated: Record<string, unknown> = { ...metadata };
+    for (const [k, v] of Object.entries(body)) {
+      if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      if (!ALLOWED_SETTINGS_KEYS.has(k)) continue;
+      updated[k] = v;
+    }
     await db.query(
       'UPDATE projects SET metadata = ?, updated_at = NOW() WHERE id = ?',
       [JSON.stringify(updated), projectId],
@@ -438,6 +469,7 @@ export function registerSessionRoutes(app: Hono): void {
     // Score team for a task (Super Brain Phase 2)
   app.post('/api/projects/:id/team-score', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     const body = await c.req.json<{
       task_description?: unknown;
       session_id?: unknown;

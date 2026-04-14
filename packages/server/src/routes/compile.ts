@@ -536,6 +536,19 @@ export function registerCompileRoutes(app: Hono): void {
         };
         if (!signal.should_participate) {
           abstentionMarkdown = `> **Abstention Notice:** ${agent_name} has low relevance for this task (score: ${signal.relevance_score}, rank: ${signal.rank_among_agents}/${signal.total_agents}). Consider delegating to a more relevant agent.\n\n`;
+          // Apply multiplicative score penalty (0.2x) to every compiled
+          // decision so downstream consumers that rank by combined_score
+          // see the abstention signal, not just the markdown note.
+          const ROLE_ABSTAIN_PENALTY = 0.2;
+          for (const d of result.decisions) {
+            const prev = (d as { combined_score?: number }).combined_score ?? 0;
+            (d as { combined_score: number }).combined_score = prev * ROLE_ABSTAIN_PENALTY;
+            const breakdown = (d as unknown as { scoring_breakdown?: Record<string, unknown> }).scoring_breakdown;
+            if (breakdown && typeof breakdown === 'object') {
+              (breakdown as Record<string, unknown>).role_abstain_penalty = ROLE_ABSTAIN_PENALTY;
+              (breakdown as Record<string, unknown>).combined = prev * ROLE_ABSTAIN_PENALTY;
+            }
+          }
         }
       } catch (err) {
         console.warn('[hipp0:compile] Role signal generation failed:', (err as Error).message);

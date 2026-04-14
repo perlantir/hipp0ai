@@ -9,11 +9,14 @@ import type { Hono } from 'hono';
 import { getProjectPatterns, extractPatterns } from '@hipp0/core/intelligence/pattern-extractor.js';
 import { isAuthRequired } from '../auth/middleware.js';
 import { safeEmit } from '../events/event-stream.js';
+import { requireUUID } from './validation.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerPatternRoutes(app: Hono): void {
   // Get patterns relevant to this project (only surfaced if 5+ tenants)
   app.get('/api/projects/:id/patterns', async (c) => {
-    const projectId = c.req.param('id');
+    const projectId = requireUUID(c.req.param('id'), 'project_id');
+    await requireProjectAccess(c, projectId);
     try {
       const patterns = await getProjectPatterns(projectId);
       if (Array.isArray(patterns) && patterns.length > 0) {

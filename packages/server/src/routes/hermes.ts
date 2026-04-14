@@ -25,9 +25,11 @@
 import crypto from 'node:crypto';
 import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
+import { attributeOutcomeToDecisions } from '@hipp0/core/intelligence/outcome-memory.js';
 import { requireUUID, requireString, optionalString, logAudit, mapDbError } from './validation.js';
 import { requireProjectAccess } from './_helpers.js';
 import { broadcast } from '../websocket.js';
+import { invalidateDecisionCaches } from '../cache/redis.js';
 import {
   HERMES_AGENT_NAME_RE,
   type HermesPlatform,
@@ -356,7 +358,7 @@ export function registerHermesRoutes(app: Hono): void {
   // -----------------------------------------------------------------------
   app.get('/api/hermes/conversations/:session_id/messages', async (c) => {
     const session_id = requireUUID(c.req.param('session_id'), 'session_id');
-    const limit = Math.min(parseInt(c.req.query('limit') ?? '200', 10) || 200, 1000);
+    const limit = Math.min(parseInt(c.req.query('limit') ?? '100', 10) || 100, 1000);
     const offset = parseInt(c.req.query('offset') ?? '0', 10) || 0;
 
     const db = getDb();
@@ -377,6 +379,7 @@ export function registerHermesRoutes(app: Hono): void {
 
     const conversation_id = convRow.id as string;
 
+    // Peek one extra row to derive has_more without a separate COUNT(*).
     const msgResult = await db.query(
       `SELECT id, role, content, tool_calls_json, tool_results_json,
               tokens_in, tokens_out, created_at
@@ -384,10 +387,13 @@ export function registerHermesRoutes(app: Hono): void {
         WHERE conversation_id = ?
         ORDER BY created_at ASC
         LIMIT ? OFFSET ?`,
-      [conversation_id, limit, offset],
+      [conversation_id, limit + 1, offset],
     );
 
-    const messages = msgResult.rows.map((row) => {
+    const has_more = msgResult.rows.length > limit;
+    const pageRows = has_more ? msgResult.rows.slice(0, limit) : msgResult.rows;
+
+    const messages = pageRows.map((row) => {
       const r = row as Record<string, unknown>;
       let tool_calls: unknown = null;
       let tool_results: unknown = null;
@@ -420,6 +426,9 @@ export function registerHermesRoutes(app: Hono): void {
       ended_at: (convRow.ended_at as string | null) ?? null,
       platform: convRow.platform as string,
       messages,
+      limit,
+      offset,
+      has_more,
     });
   });
 
@@ -632,6 +641,14 @@ export function registerHermesRoutes(app: Hono): void {
     if (!Array.isArray(body.facts) || body.facts.length === 0) {
       return c.json({ error: { code: 'VALIDATION_ERROR', message: 'facts must be a non-empty array' } }, 400);
     }
+    // Cap payload size: each fact does N DB round-trips, so an unbounded
+    // array is a cheap DOS vector. 100 matches the snippet_ids cap below.
+    if (body.facts.length > 100) {
+      return c.json(
+        { error: { code: 'VALIDATION_ERROR', message: 'facts must contain at most 100 entries' } },
+        400,
+      );
+    }
     const facts: HermesUserFact[] = body.facts.map((f, i) => {
       if (typeof f !== 'object' || f === null) {
         throw new Error(`facts[${i}] must be an object`);
@@ -662,13 +679,42 @@ export function registerHermesRoutes(app: Hono): void {
     const ifMatch = c.req.header('If-Match');
     if (ifMatch && currentVersion && ifMatch !== currentVersion) {
       return c.json(
-        { error: { code: 'CONFLICT', message: 'If-Match does not match current version', current_version: currentVersion } },
+        { error: 'version_conflict', current_version: currentVersion },
         409,
       );
     }
 
     const newVersion = crypto.randomUUID();
     const now = new Date().toISOString();
+
+    // Atomic compare-and-swap: when the caller supplied If-Match AND rows
+    // already exist, claim them in a single UPDATE guarded by
+    // `version = ifMatch`. If two concurrent requests share the same
+    // If-Match, only the first bumps `version`; the second's UPDATE affects
+    // zero rows and we return 409 `version_conflict`. This is the
+    // serialization point that makes the write race-safe.
+    if (ifMatch && currentVersion) {
+      const claim = await db.query(
+        `UPDATE hermes_user_facts
+            SET version = ?, updated_at = ?
+          WHERE project_id = ? AND external_user_id = ? AND version = ?`,
+        [newVersion, now, project_id, external_user_id, ifMatch],
+      );
+      if ((claim.rowCount ?? 0) === 0) {
+        // Someone else won the race — re-read current version for the body.
+        const reread = await db.query(
+          `SELECT version FROM hermes_user_facts
+            WHERE project_id = ? AND external_user_id = ?
+            ORDER BY updated_at DESC
+            LIMIT 1`,
+          [project_id, external_user_id],
+        );
+        const latest = reread.rows.length > 0
+          ? (reread.rows[0] as Record<string, unknown>).version as string
+          : currentVersion;
+        return c.json({ error: 'version_conflict', current_version: latest }, 409);
+      }
+    }
 
     for (const fact of facts) {
       if (fact.additive) {
@@ -685,7 +731,9 @@ export function registerHermesRoutes(app: Hono): void {
           [rowId, project_id, external_user_id, derivedKey, fact.value, fact.source ?? null, newVersion, now],
         );
       } else {
-        // Replace-style upsert on (project_id, external_user_id, key)
+        // Replace-style upsert on (project_id, external_user_id, key).
+        // When If-Match was provided, the CAS above already bumped existing
+        // rows to `newVersion`; this UPDATE is the per-key value rewrite.
         const existing = await db.query(
           `SELECT id FROM hermes_user_facts
             WHERE project_id = ? AND external_user_id = ? AND key = ?`,
@@ -754,20 +802,39 @@ export function registerHermesRoutes(app: Hono): void {
     await requireProjectAccess(c, project_id);
     const external_user_id = requireString(c.req.query('external_user_id'), 'external_user_id', 200);
 
+    // Pagination: `limit` clamped to [1, 500], default 100. `offset` >= 0,
+    // default 0. We fetch `limit + 1` and derive `has_more` from whether
+    // the extra row came back — avoids a second COUNT(*) query.
+    const rawLimit = parseInt(c.req.query('limit') ?? '100', 10);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 100, 1), 500);
+    const rawOffset = parseInt(c.req.query('offset') ?? '0', 10);
+    const offset = Math.max(Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0, 0);
+
     const db = getDb();
     const result = await db.query(
       `SELECT key, value, source, version, updated_at FROM hermes_user_facts
         WHERE project_id = ? AND external_user_id = ?
-        ORDER BY updated_at DESC, key ASC`,
-      [project_id, external_user_id],
+        ORDER BY updated_at DESC, key ASC
+        LIMIT ? OFFSET ?`,
+      [project_id, external_user_id, limit + 1, offset],
     );
 
-    if (result.rows.length === 0) {
-      return c.json({ external_user_id, version: null, facts: [] });
+    const hasMore = result.rows.length > limit;
+    const pageRows = hasMore ? result.rows.slice(0, limit) : result.rows;
+
+    if (pageRows.length === 0) {
+      return c.json({
+        external_user_id,
+        version: null,
+        facts: [],
+        offset,
+        limit,
+        has_more: false,
+      });
     }
 
-    const version = (result.rows[0] as Record<string, unknown>).version as string;
-    const facts = result.rows.map((row) => {
+    const version = (pageRows[0] as Record<string, unknown>).version as string;
+    const facts = pageRows.map((row) => {
       const r = row as Record<string, unknown>;
       return {
         key: r.key as string,
@@ -780,7 +847,14 @@ export function registerHermesRoutes(app: Hono): void {
     // Mirror the version in the ETag header so clients can use either
     // body.version or HTTP If-None-Match / If-Match semantics.
     c.header('ETag', version);
-    return c.json({ external_user_id, version, facts });
+    return c.json({
+      external_user_id,
+      version,
+      facts,
+      offset,
+      limit,
+      has_more: hasMore,
+    });
   });
 
   // -----------------------------------------------------------------------
@@ -951,6 +1025,46 @@ export function registerHermesRoutes(app: Hono): void {
       return; // unreachable — mapDbError always throws
     }
 
+    // Close the outcome→learning loop: attribute this reinforcement signal
+    // to the decisions used in the most recent compile_history for the
+    // session's agent+project. hermes_outcomes carries an opaque session_id
+    // and snippet_ids, neither of which directly identify decisions, so we
+    // look up the agent from hermes_conversations and pick the latest
+    // compile_history row for that agent+project at or before the outcome
+    // time. Failure here must not break the outcome write.
+    try {
+      const convResult = await db.query<Record<string, unknown>>(
+        'SELECT agent_id FROM hermes_conversations WHERE session_id = ?',
+        [session_id],
+      );
+      const agent_id = convResult.rows[0]?.agent_id as string | undefined;
+      if (agent_id) {
+        const chResult = await db.query<Record<string, unknown>>(
+          `SELECT id FROM compile_history
+           WHERE project_id = ? AND agent_id = ? AND compiled_at <= ?
+           ORDER BY compiled_at DESC LIMIT 1`,
+          [project_id, agent_id, recorded_at],
+        );
+        const compile_history_id = chResult.rows[0]?.id as string | undefined;
+        if (compile_history_id) {
+          const outcome_type =
+            outcome === 'positive' ? 'success' : outcome === 'negative' ? 'failure' : 'partial';
+          const outcome_score =
+            outcome === 'positive' ? 0.9 : outcome === 'negative' ? 0.1 : 0.5;
+          await attributeOutcomeToDecisions({
+            compile_history_id,
+            project_id,
+            agent_id,
+            outcome_type,
+            outcome_score,
+            notes: note ?? undefined,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[hipp0:hermes-outcomes] Decision attribution failed:', (err as Error).message);
+    }
+
     logAudit('hermes_outcome_recorded', project_id, {
       outcome_id,
       session_id,
@@ -967,6 +1081,18 @@ export function registerHermesRoutes(app: Hono): void {
       signal_source,
       recorded_at,
     });
+
+    // Fire-and-forget background re-rank: invalidate compile caches for this
+    // project so the next /api/compile re-scores decisions with the fresh
+    // hermes_outcomes trust multiplier in play. Do not await — response
+    // latency must not depend on cache eviction.
+    void (async () => {
+      try {
+        await invalidateDecisionCaches(project_id);
+      } catch (err) {
+        console.warn('[hipp0:hermes-outcomes] bg re-rank failed:', (err as Error).message);
+      }
+    })();
 
     return c.json({ outcome_id, recorded_at }, 201);
   });

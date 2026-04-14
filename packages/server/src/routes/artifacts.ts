@@ -9,11 +9,13 @@ import {
   mapDbError,
   generateEmbedding,
 } from './validation.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerArtifactRoutes(app: Hono): void {
   app.post('/api/projects/:id/artifacts', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const body = await c.req.json<{
       name?: unknown;
       path?: unknown;
@@ -80,9 +82,11 @@ export function registerArtifactRoutes(app: Hono): void {
   app.get('/api/projects/:id/artifacts', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
+    const limit = Math.min(parseInt(c.req.query('limit') ?? '200', 10) || 200, 1000);
     const result = await db.query(
-      'SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC',
-      [projectId],
+      'SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC LIMIT ?',
+      [projectId, limit],
     );
     return c.json(result.rows.map((r) => parseArtifact(r as Record<string, unknown>)));
   });

@@ -42,16 +42,22 @@ export interface AuthUser {
 }
 
 function getClientIp(c: Context): string {
-  // Only trust X-Forwarded-For when behind a known proxy
+  // Proxy headers are only trusted when HIPP0_TRUSTED_PROXY=true. Otherwise
+  // callers could spoof x-forwarded-for / x-real-ip to defeat free-tier
+  // rate limiting. X-Forwarded-For uses the leftmost entry (the original
+  // client) — not rightmost, which would be the closest proxy.
   if (process.env.HIPP0_TRUSTED_PROXY === 'true') {
     const forwarded = c.req.header('x-forwarded-for');
     if (forwarded) {
-      // Only use the first (leftmost) value — set by the trusted proxy
       return forwarded.split(',')[0]?.trim() ?? 'unknown';
     }
+    const realIp = c.req.header('x-real-ip');
+    if (realIp) return realIp.trim();
   }
-  // Fall back to X-Real-IP (typically set by reverse proxies) or socket address
-  return c.req.header('x-real-ip') ?? 'unknown';
+  // Fall back to the socket remote address. Hono node adapter exposes the
+  // IncomingMessage via c.env.incoming.
+  const env = (c as unknown as { env?: { incoming?: { socket?: { remoteAddress?: string } } } }).env;
+  return env?.incoming?.socket?.remoteAddress ?? 'unknown';
 }
 
   // Free-tier IP tracking (50 requests without signup)
@@ -128,7 +134,7 @@ async function authenticateApiKey(token: string, c: Context): Promise<AuthUser |
   const result = await db.query(
     `SELECT ak.*, t.plan FROM api_keys ak
      JOIN tenants t ON t.id = ak.tenant_id
-     WHERE ak.key_hash = ?`,
+     WHERE ak.key_hash = ? AND ak.revoked_at IS NULL`,
     [hash],
   );
 

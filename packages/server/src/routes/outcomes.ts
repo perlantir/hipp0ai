@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
 import { requireUUID, logAudit } from './validation.js';
+import { requireProjectAccess } from './_helpers.js';
+import { NotFoundError } from '@hipp0/core/types.js';
 import { getMetrics, recordCounter } from '../telemetry.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -158,6 +160,16 @@ export function registerOutcomeRoutes(app: Hono): void {
       const projectId = body.project_id ? requireUUID(body.project_id, 'project_id') : null;
 
       if (decisionId && projectId) {
+        // Verify the decision belongs to the provided project, then check tenant access.
+        const db2 = getDb();
+        const verify = await db2.query<{ project_id: string }>(
+          'SELECT project_id FROM decisions WHERE id = ?',
+          [decisionId],
+        );
+        if (verify.rows.length === 0 || verify.rows[0].project_id !== projectId) {
+          return c.json({ error: { code: 'NOT_FOUND', message: 'Decision not found' } }, 404);
+        }
+        await requireProjectAccess(c, projectId);
         try {
           const { recordDecisionOutcome } = await import('@hipp0/core/intelligence/outcome-memory.js');
           const outcome = await recordDecisionOutcome({
@@ -213,6 +225,7 @@ export function registerOutcomeRoutes(app: Hono): void {
     const projectId = history.project_id as string;
     const agentId = history.agent_id as string;
     const totalDecisions = (history.total_decisions as number) ?? 0;
+    await requireProjectAccess(c, projectId);
 
     // Parse decision scores
     let decisionScores: Array<{ id: string; title: string; combined_score?: number }> = [];
@@ -374,6 +387,12 @@ export function registerOutcomeRoutes(app: Hono): void {
   app.get('/api/agents/:id/outcomes', async (c) => {
     const db = getDb();
     const agentId = requireUUID(c.req.param('id'), 'agentId');
+    const agentRow = await db.query<{ project_id: string }>(
+      'SELECT project_id FROM agents WHERE id = ?',
+      [agentId],
+    );
+    if (agentRow.rows.length === 0) throw new NotFoundError('Agent', agentId);
+    await requireProjectAccess(c, agentRow.rows[0].project_id);
     const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200);
 
     const result = await db.query<Record<string, unknown>>(
@@ -391,6 +410,7 @@ export function registerOutcomeRoutes(app: Hono): void {
   app.get('/api/projects/:id/outcome-summary', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
 
     // Overall stats
     const statsResult = await db.query<Record<string, unknown>>(
@@ -495,6 +515,7 @@ export function registerOutcomeRoutes(app: Hono): void {
   // GET /api/decisions/:id/outcomes — Decision outcome history
   app.get('/api/decisions/:id/outcomes', async (c) => {
     const decisionId = requireUUID(c.req.param('id'), 'decisionId');
+    await requireDecisionProjectAccess(c, decisionId);
     const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200);
     const { getDecisionOutcomes } = await import('@hipp0/core/intelligence/outcome-memory.js');
     const outcomes = await getDecisionOutcomes(decisionId, limit);
@@ -504,6 +525,7 @@ export function registerOutcomeRoutes(app: Hono): void {
   // GET /api/decisions/:id/outcome-stats — Decision outcome aggregates
   app.get('/api/decisions/:id/outcome-stats', async (c) => {
     const decisionId = requireUUID(c.req.param('id'), 'decisionId');
+    await requireDecisionProjectAccess(c, decisionId);
     const { getOutcomeStats } = await import('@hipp0/core/intelligence/outcome-memory.js');
     const stats = await getOutcomeStats(decisionId);
     return c.json(stats);
@@ -512,6 +534,7 @@ export function registerOutcomeRoutes(app: Hono): void {
   // GET /api/projects/:id/agent-performance — Cross-agent learning summary
   app.get('/api/projects/:id/agent-performance', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const { getCrossAgentSummary } = await import('@hipp0/core/intelligence/cross-agent-learner.js');
     const summary = await getCrossAgentSummary(projectId);
     return c.json(summary);
@@ -520,8 +543,22 @@ export function registerOutcomeRoutes(app: Hono): void {
   // POST /api/projects/:id/apply-learning — Trigger cross-agent learning update
   app.post('/api/projects/:id/apply-learning', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const { applyCrossAgentLearning } = await import('@hipp0/core/intelligence/cross-agent-learner.js');
     const result = await applyCrossAgentLearning(projectId);
     return c.json(result);
   });
+}
+
+async function requireDecisionProjectAccess(
+  c: import('hono').Context,
+  decisionId: string,
+): Promise<void> {
+  const db = getDb();
+  const res = await db.query<{ project_id: string }>(
+    'SELECT project_id FROM decisions WHERE id = ?',
+    [decisionId],
+  );
+  if (res.rows.length === 0) throw new NotFoundError('Decision', decisionId);
+  await requireProjectAccess(c, res.rows[0].project_id);
 }

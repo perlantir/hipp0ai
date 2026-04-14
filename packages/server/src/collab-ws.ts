@@ -54,6 +54,9 @@ export function getCollabWss(): WebSocketServer | null {
 
   // Public API
 
+/** Drop payloads for clients whose buffered outbound data exceeds this. */
+const WS_BACKPRESSURE_DROP_BYTES = 1024 * 1024;
+
 /** Broadcast a typed event to every client in a room. */
 export function broadcastToRoom(token: string, event: string, data: unknown): void {
   const clients = rooms.get(token);
@@ -65,11 +68,28 @@ export function broadcastToRoom(token: string, event: string, data: unknown): vo
     timestamp: new Date().toISOString(),
   } satisfies RoomEvent);
 
+  // Fan out in parallel with Promise.all. Clients with large buffered
+  // writes are dropped for this broadcast (logged) so a single slow
+  // peer cannot block the room.
+  const sends: Promise<void>[] = [];
   for (const client of clients) {
-    if (client.ws.readyState === WebSocket.OPEN) {
-      client.ws.send(payload);
+    if (client.ws.readyState !== WebSocket.OPEN) continue;
+    if (client.ws.bufferedAmount > WS_BACKPRESSURE_DROP_BYTES) {
+      console.warn(
+        `[collab-ws] Dropping event for slow client — bufferedAmount=${client.ws.bufferedAmount} event=${event}`,
+      );
+      continue;
     }
+    sends.push(
+      new Promise<void>((resolve) => {
+        client.ws.send(payload, (err) => {
+          if (err) console.warn('[collab-ws] send error:', err.message);
+          resolve();
+        });
+      }),
+    );
   }
+  void Promise.all(sends);
 }
 
 /** Get the set of online display names for a room. */

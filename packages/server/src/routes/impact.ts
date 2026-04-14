@@ -6,10 +6,12 @@
 import type { Hono } from 'hono';
 import { requireUUID, requireString } from './validation.js';
 import { analyzeImpact } from '@hipp0/core/intelligence/impact-analyzer.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerImpactRoutes(app: Hono): void {
   app.post('/api/projects/:id/impact', async (c) => {
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const body = await c.req.json<{ proposed_decision?: unknown }>();
 
     const proposedDecision = requireString(body.proposed_decision, 'proposed_decision', 5000);
