@@ -114,6 +114,37 @@ export async function getOutcomeStats(decisionId: string): Promise<OutcomeStats>
  * Recompute and persist cached outcome aggregates on the decision row.
  * Called after every new outcome is recorded.
  */
+/**
+ * Read per-decision outcome stats from the unified ``decision_outcome_stats``
+ * view (migration 058, Phase 14). Returns null when the view is absent
+ * (older SQLite databases — the view is Postgres-only) or when the decision
+ * has no matching rows in hermes_outcomes. Callers should combine this with
+ * the legacy decisions.outcome_success_rate column until the deprecation
+ * window closes and the column is dropped.
+ */
+export async function getUnifiedOutcomeStats(
+  decisionId: string,
+): Promise<{ success_rate: number; total_count: number } | null> {
+  const db = getDb();
+  if (db.dialect !== 'postgres') return null;
+  try {
+    const result = await db.query<{ success_rate: string | number; total_count: string | number }>(
+      `SELECT success_rate, total_count FROM decision_outcome_stats WHERE decision_id = ?`,
+      [decisionId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const rate = typeof row.success_rate === 'string' ? parseFloat(row.success_rate) : row.success_rate;
+    const total = typeof row.total_count === 'string' ? parseInt(row.total_count, 10) : row.total_count;
+    if (!Number.isFinite(rate) || !Number.isFinite(total)) return null;
+    return { success_rate: rate, total_count: total };
+  } catch {
+    // View missing (pre-058 database) or any read failure → null tells the
+    // caller to fall back to the legacy column. Never throw to callers.
+    return null;
+  }
+}
+
 export async function recomputeOutcomeAggregates(decisionId: string): Promise<void> {
   const db = getDb();
   const stats = await getOutcomeStats(decisionId);
