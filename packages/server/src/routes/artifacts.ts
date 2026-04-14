@@ -83,9 +83,10 @@ export function registerArtifactRoutes(app: Hono): void {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
     await requireProjectAccess(c, projectId);
+    const limit = Math.min(parseInt(c.req.query('limit') ?? '200', 10) || 200, 1000);
     const result = await db.query(
-      'SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC',
-      [projectId],
+      'SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC LIMIT ?',
+      [projectId, limit],
     );
     return c.json(result.rows.map((r) => parseArtifact(r as Record<string, unknown>)));
   });

@@ -14,7 +14,7 @@ export function registerContradictionRoutes(app: Hono): void {
     await requireProjectAccess(c, projectId);
     const status = c.req.query('status') ?? 'unresolved';
     const result = await db.query(
-      'SELECT * FROM contradictions WHERE project_id = ? AND status = ? ORDER BY detected_at DESC',
+      'SELECT * FROM contradictions WHERE project_id = ? AND status = ? ORDER BY detected_at DESC LIMIT 500',
       [projectId, status],
     );
     return c.json(result.rows.map((r) => parseContradiction(r as Record<string, unknown>)));
