@@ -1186,6 +1186,29 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   const allScored = [...scored, ...expandedScored];
 
+  // Freshness normalization pass: multiply each decision's score by an
+  // updated_at-based half-life multiplier before packing. The weighted
+  // `freshness` signal inside scoreDecision uses created_at; this extra
+  // pass captures *recent activity* (updated_at) so stale-but-unchanged
+  // decisions drop out of the budget ahead of equally-scored fresh ones.
+  const FRESHNESS_HALF_LIFE_DAYS = 30;
+  const FRESHNESS_LN2 = Math.LN2;
+  for (const d of allScored) {
+    if (!FRESHNESS_ENABLED) break;
+    const updatedRaw = (d as Decision & { updated_at?: string | Date | null }).updated_at
+      ?? d.created_at;
+    const updatedAt = updatedRaw ? new Date(updatedRaw as string).getTime() : NaN;
+    if (!Number.isFinite(updatedAt)) continue;
+    const ageDays = Math.max(0, (Date.now() - updatedAt) / 86400000);
+    const mult = Math.exp(-(FRESHNESS_LN2 * ageDays) / FRESHNESS_HALF_LIFE_DAYS);
+    d.combined_score = d.combined_score * mult;
+    const bd = d.scoring_breakdown as unknown as Record<string, unknown>;
+    if (bd && typeof bd === 'object') {
+      bd.freshness_normalization = mult;
+      bd.combined = d.combined_score;
+    }
+  }
+
   // Cap artifact fetch at 100 most-recent rows — scoring is an O(N*M) loop
   // against decisionScoreMap, and the packer only keeps items that fit the
   // artifact token budget. Loading every artifact for long-lived projects
