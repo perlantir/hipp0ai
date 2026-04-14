@@ -310,6 +310,15 @@ export interface ScoringBreakdown {
   trust_multiplier?: number;
   outcome_multiplier?: number;
   staleness_multiplier?: number;
+  /**
+   * Which source fed outcome_multiplier for this row:
+   *   'view'   — Phase 14 decision_outcome_stats view (preferred)
+   *   'column' — legacy decisions.outcome_success_rate column
+   *   'none'   — below MIN_OUTCOMES_FOR_EFFECT, multiplier = 1.0
+   * Surfaced so "why did this decision rank here?" can be answered from
+   * the audit trail without re-running the query.
+   */
+  outcome_source?: 'view' | 'column' | 'none';
 }
 
 // --- Edges ---

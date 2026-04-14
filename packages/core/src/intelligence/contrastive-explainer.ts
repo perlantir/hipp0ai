@@ -21,7 +21,14 @@ const SIGNAL_LABELS: Record<string, string> = {
 };
 
 /** Signals to compare (excludes `combined` which is the aggregate) */
-const COMPARABLE_SIGNALS: (keyof ScoringBreakdown)[] = [
+type NumericBreakdownKey = Exclude<
+  {
+    [K in keyof ScoringBreakdown]: ScoringBreakdown[K] extends number | undefined ? K : never;
+  }[keyof ScoringBreakdown],
+  undefined
+>;
+
+const COMPARABLE_SIGNALS: NumericBreakdownKey[] = [
   'direct_affect',
   'tag_matching',
   'role_relevance',

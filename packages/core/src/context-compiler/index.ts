@@ -442,6 +442,13 @@ export function scoreDecision(
   taskEmbedding: number[],
   domainContext?: { taskDomain?: DecisionDomain | null; agentDomain?: DecisionDomain | null },
   taskDescription?: string,
+  /**
+   * Set of decision ids whose outcome_success_rate/outcome_count were
+   * overridden from the Phase 14 decision_outcome_stats view upstream.
+   * Used for audit-trail attribution only — the numeric value is already
+   * in decision.outcome_success_rate by the time scoreDecision runs.
+   */
+  viewSourcedIds?: Set<string>,
 ): ScoredDecision {
   const profile = agent.relevance_profile;
   const agentNameLower = agent.name.toLowerCase();
@@ -609,11 +616,15 @@ export function scoreDecision(
   // the same reaction fed both paths (view aggregates hermes_outcomes AND
   // migration 059 backfilled them from decision_outcomes). Removed —
   // one reaction, one multiplier.
-  const outcomeMult = outcomeMultiplier(
-    (decision as Decision & { outcome_success_rate?: number | null }).outcome_success_rate,
-    (decision as Decision & { outcome_count?: number }).outcome_count,
-  );
+  const outcomeSuccessRate = (decision as Decision & { outcome_success_rate?: number | null }).outcome_success_rate;
+  const outcomeCount = (decision as Decision & { outcome_count?: number }).outcome_count;
+  const outcomeMult = outcomeMultiplier(outcomeSuccessRate, outcomeCount);
   finalScore *= outcomeMult;
+  // Audit-trail attribution: which source fed outcomeMultiplier.
+  let outcomeSource: 'view' | 'column' | 'none' = 'none';
+  if (outcomeCount != null && outcomeCount >= 2) {
+    outcomeSource = viewSourcedIds?.has(decision.id) ? 'view' : 'column';
+  }
 
   // Staleness multiplier: tier-aware gradual ramp (permanent tier NEVER stale)
   let stalenessMultiplier = 1.0;
@@ -674,6 +685,7 @@ export function scoreDecision(
     wing_affinity_boost: wingAffinityBoost,
     trust_multiplier: trustMult,
     outcome_multiplier: outcomeMult,
+    outcome_source: outcomeSource,
     explanation,
   } as ScoringBreakdown;
 
@@ -1188,12 +1200,14 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     { project_id },
     async () => loadUnifiedOutcomeStats(project_id),
   );
+  const viewSourcedIds = new Set<string>();
   if (unifiedStats.size > 0) {
     for (const d of allDecisions) {
       const u = unifiedStats.get(d.id);
       if (!u) continue;
       (d as Decision & { outcome_success_rate?: number; outcome_count?: number }).outcome_success_rate = u.success_rate;
       (d as Decision & { outcome_success_rate?: number; outcome_count?: number }).outcome_count = u.total_count;
+      viewSourcedIds.add(d.id);
     }
   }
 
@@ -1201,7 +1215,7 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     'compile.score_decisions',
     { project_id, agent_name },
     async () => allDecisions.map((d) => {
-    const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description);
+    const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description, viewSourcedIds);
     // Tag loading layer
     if (l0Ids.has(d.id)) {
       sd.loading_layer = 'L0';
