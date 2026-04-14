@@ -269,6 +269,8 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "tsx bench/compile.bench.ts",
+    "bench:update": "tsx bench/compile.bench.ts --update-baseline",
     "clean": "rm -rf dist"
   },
   "dependencies": {
