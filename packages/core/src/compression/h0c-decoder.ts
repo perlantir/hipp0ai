@@ -35,17 +35,24 @@ export function decodeH0C(h0c: string): DecodedDecision[] {
     if (!trimmed || trimmed === '---' || trimmed === '(empty)') continue;
     if (trimmed.startsWith('#H0C')) continue;
 
-    // Parse tag index: #TAGS: 0=auth 1=security 2=jwt ...
+    // Parse tag index. Two accepted forms:
+    //   Implicit: #TAGS: auth,security,jwt   (position = index)
+    //   Explicit: #TAGS: 0=auth 1=security   (legacy)
     if (trimmed.startsWith('#TAGS:')) {
       const tagPart = trimmed.slice('#TAGS:'.length).trim();
-      const entries = tagPart.split(/\s+/);
-      for (const entry of entries) {
-        const eqIdx = entry.indexOf('=');
-        if (eqIdx > 0) {
-          const idx = parseInt(entry.slice(0, eqIdx), 10);
-          const tag = entry.slice(eqIdx + 1);
-          if (!isNaN(idx) && tag) tagMap.set(idx, tag);
+      if (tagPart.includes('=')) {
+        const entries = tagPart.split(/\s+/);
+        for (const entry of entries) {
+          const eqIdx = entry.indexOf('=');
+          if (eqIdx > 0) {
+            const idx = parseInt(entry.slice(0, eqIdx), 10);
+            const tag = entry.slice(eqIdx + 1);
+            if (!isNaN(idx) && tag) tagMap.set(idx, tag);
+          }
         }
+      } else {
+        const entries = tagPart.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
+        entries.forEach((tag, i) => tagMap.set(i, tag));
       }
       continue;
     }
@@ -57,23 +64,32 @@ export function decodeH0C(h0c: string): DecodedDecision[] {
     const meta = bracketMatch[1]!;
     const rest = bracketMatch[2]!;
 
-    // Parse metadata fields: score|conf|by:agent|date
-    const metaParts = meta.split('|');
+    // Parse metadata fields. Two formats:
+    //   Top-tier:  score|conf|agent|date[|ns:xxx]
+    //   Mid-tier:  score|agent[|ns:xxx]
+    //   Minimal:   score[|ns:xxx]
+    const metaParts = meta.split('|').map((p) => p.trim());
     const scoreRaw = parseInt(metaParts[0] ?? '0', 10);
     const score = isNaN(scoreRaw) ? 0 : scoreRaw / 100;
-    const confidence = expandConfidence(metaParts[1]?.trim() ?? 'M');
 
+    // Slot 1 is confidence shorthand (H/M/L) if present; otherwise a non-conf field.
+    let confidence: ConfidenceLevel = 'low';
     let made_by = '';
     let date = '';
     let namespace: string | undefined;
-    for (let i = 2; i < metaParts.length; i++) {
-      const part = metaParts[i]!.trim();
+
+    let startIdx = 1;
+    if (metaParts.length >= 2 && /^[HML]$/.test(metaParts[1] ?? '')) {
+      confidence = expandConfidence(metaParts[1] ?? 'M');
+      startIdx = 2;
+    }
+    for (let i = startIdx; i < metaParts.length; i++) {
+      const part = metaParts[i]!;
       if (part.startsWith('by:')) {
         made_by = part.slice(3);
       } else if (part.startsWith('ns:')) {
         namespace = part.slice(3);
-      } else if (i === 2 && !part.startsWith('by:')) {
-        // New format: agent name without by: prefix
+      } else if (!made_by) {
         made_by = part;
       } else {
         date = part;

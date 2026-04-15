@@ -22,7 +22,7 @@ import type { ScoredDecision, ConfidenceLevel, SuggestedPattern } from '../types
 export interface H0CEncodeOptions {
   /** Include first-sentence reasoning hint (default: false) */
   includeReasoning?: boolean;
-  /** Max words for description summary (default: 8) */
+  /** Max words for description summary (default: 7) */
   maxDescriptionWords?: number;
   /** Number of top decisions that get full detail (default: 5) */
   fullDetailCount?: number;
@@ -95,7 +95,7 @@ export function encodeH0C(
   if (decisions.length === 0) return '#H0C v2\n---\n(empty)';
 
   const includeReasoning = options?.includeReasoning ?? false;
-  const maxDescWords = options?.maxDescriptionWords ?? 8;
+  const maxDescWords = options?.maxDescriptionWords ?? 7;
   const fullDetailCount = options?.fullDetailCount ?? 5;
 
   // 1. Build tag index from all decisions
@@ -109,29 +109,17 @@ export function encodeH0C(
   const tagIndex = new Map<string, number>();
   tagList.forEach((tag, i) => tagIndex.set(tag, i));
 
-  // 2. Build agent index for deduplication
-  const agentSet = new Set<string>();
-  for (const d of decisions) {
-    if (d.made_by) agentSet.add(d.made_by);
-  }
-  const agentList = [...agentSet];
-  const agentIndex = new Map<string, number>();
-  agentList.forEach((a, i) => agentIndex.set(a, i));
-
-  // 3. Build header
-  const tagHeader = tagList.map((t, i) => `${i}=${t}`).join(' ');
-  const agentHeader = agentList.map((a, i) => `${i}=${a}`).join(' ');
+  // 2. Build header. Tags use implicit index via position; decoder also accepts
+  // explicit `N=tag` tokens for backward compatibility.
+  const tagHeader = tagList.join(',');
   const lines: string[] = [];
-  lines.push(`#H0C v3`);
+  lines.push(`#H0C v2`);
   if (tagList.length > 0) {
-    lines.push(`#T ${tagHeader}`);
-  }
-  if (agentList.length > 1) {
-    lines.push(`#A ${agentHeader}`);
+    lines.push(`#TAGS: ${tagHeader}`);
   }
   lines.push('---');
 
-  // 4. One line per decision - tiered detail
+  // 3. One line per decision - tiered detail
   const sorted = [...decisions].sort((a, b) => (b.combined_score ?? 0) - (a.combined_score ?? 0));
 
   for (let i = 0; i < sorted.length; i++) {
@@ -139,18 +127,21 @@ export function encodeH0C(
     const isTopTier = i < fullDetailCount;
     const score = Math.round((d.combined_score ?? 0) * 100);
     const conf = confShorthand(d.confidence);
-    const agentRef = agentList.length > 1 ? String(agentIndex.get(d.made_by) ?? 0) : safePipe(d.made_by);
-    const title = safePipe(truncateWords(d.title, isTopTier ? 10 : 6));
+    const agentRef = safePipe(d.made_by);
+    const title = safePipe(truncateWords(d.title, isTopTier ? 8 : 6));
 
     // Tag references by index
     const tagRefs = d.tags.map((t) => tagIndex.get(t)).filter((idx) => idx !== undefined);
-    const tagStr = tagRefs.length > 0 ? tagRefs.join(',') : '';
+    const tagStr = tagRefs.length > 0 ? `g:${tagRefs.join(',')}` : '';
+
+    // Namespace marker (inside metadata bracket)
+    const nsMarker = d.namespace ? `|ns:${safePipe(d.namespace)}` : '';
 
     if (isTopTier) {
-      // Full detail: score, confidence, agent, date, title, tags, description
+      // Full detail: score, confidence, agent, date, [ns], title, tags, description
       const date = compactDate(d.created_at);
       const desc = safePipe(truncateWords(firstSentence(d.description), maxDescWords));
-      let line = `[${score}|${conf}|${agentRef}|${date}]${title}`;
+      let line = `[${score}|${conf}|${agentRef}|${date}${nsMarker}]${title}`;
       if (tagStr) line += `|${tagStr}`;
       if (desc) line += `|${desc}`;
 
@@ -160,13 +151,13 @@ export function encodeH0C(
       }
       lines.push(line);
     } else if (i < fullDetailCount * 3) {
-      // Mid-tier: score, agent, short title, tags
-      let line = `[${score}|${agentRef}]${title}`;
+      // Mid-tier: score, conf, agent, [ns], short title, tags
+      let line = `[${score}|${conf}|${agentRef}${nsMarker}]${title}`;
       if (tagStr) line += `|${tagStr}`;
       lines.push(line);
     } else {
-      // Minimal: score and title only
-      lines.push(`[${score}]${title}`);
+      // Minimal: score, conf, [ns], and title only
+      lines.push(`[${score}|${conf}${nsMarker}]${title}`);
     }
   }
 
