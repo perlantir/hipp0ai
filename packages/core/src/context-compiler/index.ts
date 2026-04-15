@@ -29,7 +29,7 @@ import type {
 } from '../types.js';
 import { getPatternRecommendations, DEFAULT_MIN_PATTERN_CONFIDENCE } from '../intelligence/pattern-extractor.js';
 import { inferDomainFromTask } from '../hierarchy/classifier.js';
-import { trustMultiplier } from '../intelligence/trust-scorer.js';
+import { computeTrust, trustMultiplier } from '../intelligence/trust-scorer.js';
 import { outcomeMultiplier } from '../intelligence/outcome-memory.js';
 import { computeWingSources } from '../wings/affinity.js';
 import { withCoreSpan } from '../telemetry.js';
@@ -604,7 +604,11 @@ export function scoreDecision(
   finalScore += domainBoost;
 
   // Trust multiplier: low-trust decisions penalized (0.70x), high-trust boosted (1.15x)
-  const trustMult = trustMultiplier(decision.trust_score);
+  // Recompute trust with the live contradiction count wired in from the batch fetch upstream.
+  const { trust_score: liveTrustScore } = computeTrust(decision, {
+    contradictionCount: (decision as Decision & { _contradiction_count?: number })._contradiction_count ?? 0,
+  });
+  const trustMult = trustMultiplier(liveTrustScore);
   finalScore *= trustMult;
 
   // Outcome multiplier: decisions with strong track records get modest boost
@@ -1200,6 +1204,33 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   const allDecisionMap = new Map<string, Decision>(allDecisions.map((d) => [d.id, d]));
 
+  // Batch-fetch active contradiction counts for all candidate decisions
+  const allCandidateIds = allDecisions.map((d) => d.id);
+  const contradictionCounts = new Map<string, number>();
+  if (allCandidateIds.length > 0) {
+    try {
+      const placeholders = allCandidateIds.map(() => '?').join(',');
+      const contrResult = await db.query<Record<string, unknown>>(
+        `SELECT decision_a_id as did, COUNT(*) as cnt
+         FROM contradictions
+         WHERE decision_a_id IN (${placeholders}) AND status = 'active'
+         GROUP BY decision_a_id
+         UNION ALL
+         SELECT decision_b_id as did, COUNT(*) as cnt
+         FROM contradictions
+         WHERE decision_b_id IN (${placeholders}) AND status = 'active'
+         GROUP BY decision_b_id`,
+        [...allCandidateIds, ...allCandidateIds],
+      );
+      for (const row of contrResult.rows) {
+        const did = row.did as string;
+        contradictionCounts.set(did, (contradictionCounts.get(did) ?? 0) + Number(row.cnt ?? 0));
+      }
+    } catch {
+      // Non-fatal: contradiction penalty simply won't apply
+    }
+  }
+
   // Task embedding — check in-process LRU before calling out to the
   // embeddings API. Embeddings depend only on task_description, so the
   // cache is safely shared across agents and projects.
@@ -1262,7 +1293,11 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     'compile.score_decisions',
     { project_id, agent_name },
     async () => allDecisions.map((d) => {
-    const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description, viewSourcedIds);
+    const decisionWithContrCount = {
+      ...d,
+      _contradiction_count: contradictionCounts.get(d.id) ?? 0,
+    };
+    const sd = scoreDecision(decisionWithContrCount, agent, taskEmbedding, domainContext, task_description, viewSourcedIds);
     // Tag loading layer
     if (l0Ids.has(d.id)) {
       sd.loading_layer = 'L0';
