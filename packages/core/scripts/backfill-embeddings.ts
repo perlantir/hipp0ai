@@ -1,102 +1,80 @@
 #!/usr/bin/env tsx
 /**
- * Backfill embeddings for all decisions that have null/zero-vector embeddings.
+ * Backfill embeddings for decisions that don't have them.
  *
- * Usage: npx tsx packages/core/scripts/backfill-embeddings.ts
+ * Usage:
+ *   HIPP0_EMBEDDING_PROVIDER=openai OPENAI_API_KEY=sk-... \
+ *     npx tsx packages/core/scripts/backfill-embeddings.ts [project_id]
  *
- * Processes in batches of 50, shows progress, and is idempotent
- * (skips decisions that already have non-zero embeddings).
+ * If project_id is omitted, backfills all projects.
+ *
+ * Processes in batches of 100. Respects rate limits via small delay between batches.
  */
-
 import { initDb, getDb, closeDb } from '../src/db/index.js';
-import { generateEmbedding } from '../src/decision-graph/embeddings.js';
+import { embedDecisionAsync } from '../src/intelligence/decision-embedder.js';
+import { getEmbeddingProvider } from '../src/intelligence/embedding-provider.js';
 
-const BATCH_SIZE = 50;
+const BATCH_SIZE = 100;
+const DELAY_MS = 500;
 
-async function isZeroVector(embedding: unknown): Promise<boolean> {
-  if (!embedding) return true;
-  const arr = typeof embedding === 'string' ? JSON.parse(embedding) : embedding;
-  if (!Array.isArray(arr) || arr.length === 0) return true;
-  return arr.every((v: number) => v === 0);
-}
+async function main(): Promise<void> {
+  const projectId = process.argv[2];
+  const provider = getEmbeddingProvider();
+  if (!provider) {
+    console.error('HIPP0_EMBEDDING_PROVIDER is not set. Aborting.');
+    process.exit(1);
+  }
 
-async function main() {
-  console.log('[backfill] Initializing database...');
   await initDb();
   const db = getDb();
 
-  // Get total count of decisions needing backfill
-  const countResult = await db.query('SELECT COUNT(*) as count FROM decisions', []);
-  const total = parseInt((countResult.rows[0] as Record<string, unknown>).count as string, 10);
-  console.log(`[backfill] Total decisions: ${total}`);
+  const sql = projectId
+    ? `SELECT id, title, description, reasoning FROM decisions
+       WHERE project_id = ? AND embedding IS NULL ORDER BY created_at DESC LIMIT ?`
+    : `SELECT id, title, description, reasoning FROM decisions
+       WHERE embedding IS NULL ORDER BY created_at DESC LIMIT ?`;
 
-  let processed = 0;
-  let skipped = 0;
-  let updated = 0;
-  let failed = 0;
-  let offset = 0;
+  let totalProcessed = 0;
+  let totalFailed = 0;
 
-  while (offset < total) {
-    const batch = await db.query(
-      'SELECT id, title, description, reasoning, embedding FROM decisions ORDER BY created_at LIMIT ? OFFSET ?',
-      [BATCH_SIZE, offset],
-    );
-
+  while (true) {
+    const params = projectId ? [projectId, BATCH_SIZE] : [BATCH_SIZE];
+    const batch = await db.query<Record<string, unknown>>(sql, params);
     if (batch.rows.length === 0) break;
 
+    console.log(`[backfill] Processing batch of ${batch.rows.length} decisions...`);
+    let batchSuccesses = 0;
+
     for (const row of batch.rows) {
-      const d = row as Record<string, unknown>;
-      processed++;
-
-      // Skip if already has a non-zero embedding
-      if (d.embedding && !(await isZeroVector(d.embedding))) {
-        skipped++;
-        continue;
-      }
-
-      const text = `${d.title}\n${d.description}\n${d.reasoning}`;
-
+      const id = row.id as string;
+      const title = (row.title as string) ?? '';
+      const content = ((row.description as string) ?? (row.reasoning as string) ?? '') as string;
       try {
-        const embedding = await generateEmbedding(text);
-
-        // Check if it's a real embedding (not zero-vector)
-        if (embedding.every((v) => v === 0)) {
-          console.warn(`  [${processed}/${total}] ${(d.title as string).slice(0, 50)} — zero-vector (no provider?)`);
-          failed++;
-          continue;
-        }
-
-        await db.query('UPDATE decisions SET embedding = ? WHERE id = ?', [
-          `[${embedding.join(',')}]`,
-          d.id,
-        ]);
-        updated++;
-
-        if (updated % 10 === 0) {
-          console.log(`  [${processed}/${total}] ${updated} updated, ${skipped} skipped, ${failed} failed`);
-        }
+        await embedDecisionAsync(id, title, content);
+        totalProcessed++;
+        batchSuccesses++;
       } catch (err) {
-        failed++;
-        console.error(`  [${processed}/${total}] ${(d.title as string).slice(0, 50)} — ERROR: ${(err as Error).message}`);
+        totalFailed++;
+        console.warn(`[backfill] Failed to embed ${id}: ${(err as Error).message}`);
       }
-
-      // Small delay to avoid rate limiting
-      if (updated % 10 === 0) await new Promise((r) => setTimeout(r, 100));
     }
 
-    offset += BATCH_SIZE;
+    console.log(`[backfill] Progress: processed=${totalProcessed} failed=${totalFailed}`);
+
+    if (batchSuccesses === 0) {
+      console.log('[backfill] No progress in last batch. Stopping.');
+      break;
+    }
+
+    await new Promise((r) => setTimeout(r, DELAY_MS));
   }
 
-  console.log(`\n[backfill] Done.`);
-  console.log(`  Total:   ${total}`);
-  console.log(`  Updated: ${updated}`);
-  console.log(`  Skipped: ${skipped} (already had embeddings)`);
-  console.log(`  Failed:  ${failed}`);
-
+  console.log(`[backfill] DONE. processed=${totalProcessed} failed=${totalFailed}`);
   await closeDb();
+  process.exit(0);
 }
 
 main().catch((err) => {
-  console.error('[backfill] Fatal error:', err);
+  console.error('[backfill] FATAL:', err);
   process.exit(1);
 });

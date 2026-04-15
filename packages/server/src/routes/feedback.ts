@@ -1,7 +1,7 @@
 import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
 import { parseFeedback } from '@hipp0/core/db/parsers.js';
-import { ValidationError } from '@hipp0/core/types.js';
+import { ValidationError, NotFoundError } from '@hipp0/core/types.js';
 import {
   recordFeedback,
   recordBatchFeedback,
@@ -10,6 +10,8 @@ import {
   getWeightSuggestions,
   resetWeights,
   getWeightHistory,
+  getPendingFeedbackCount,
+  AUTO_APPLY_THRESHOLD,
 } from '@hipp0/core/relevance-learner/index.js';
 import { processWingFeedback, processWingFeedbackBatch } from '@hipp0/core';
 import { requireUUID, requireString, optionalString, mapDbError, logAudit } from './validation.js';
@@ -53,6 +55,20 @@ export function registerFeedbackRoutes(app: Hono): void {
       body.compile_request_id != null
         ? requireUUID(body.compile_request_id, 'compile_request_id')
         : null;
+
+    // Tenant access check — resolve project_id from decision_id (the
+    // authoritative tenancy boundary) before any write side-effect.
+    {
+      const db = getDb();
+      const projRes = await db.query<{ project_id: string }>(
+        'SELECT project_id FROM decisions WHERE id = ?',
+        [decision_id],
+      );
+      if (projRes.rows.length === 0) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Decision not found' } }, 404);
+      }
+      await requireProjectAccess(c, projRes.rows[0].project_id);
+    }
 
     try {
       const result = await recordFeedback({
@@ -119,6 +135,19 @@ export function registerFeedbackRoutes(app: Hono): void {
       return { decision_id, rating };
     });
 
+    // Tenant access check — resolve project_id from agent_id.
+    {
+      const db = getDb();
+      const projRes = await db.query<{ project_id: string }>(
+        'SELECT project_id FROM agents WHERE id = ?',
+        [agent_id],
+      );
+      if (projRes.rows.length === 0) {
+        return c.json({ error: { code: 'NOT_FOUND', message: 'Agent not found' } }, 404);
+      }
+      await requireProjectAccess(c, projRes.rows[0].project_id);
+    }
+
     const result = await recordBatchFeedback(agent_id, compile_request_id, task_description, ratings);
 
     // Wing affinity learning from batch
@@ -146,6 +175,7 @@ export function registerFeedbackRoutes(app: Hono): void {
     // Feedback history
   app.get('/api/agents/:id/feedback', async (c) => {
     const agentId = requireUUID(c.req.param('id'), 'agentId');
+    await requireAgentProjectAccess(c, agentId);
     const limit = Math.min(parseInt(c.req.query('limit') ?? '50', 10), 200);
     const feedback = await getFeedbackForAgent(agentId, limit);
     return c.json(feedback);
@@ -154,6 +184,7 @@ export function registerFeedbackRoutes(app: Hono): void {
     // Weight suggestions (manual mode)
   app.get('/api/agents/:id/weight-suggestions', async (c) => {
     const agentId = requireUUID(c.req.param('id'), 'agentId');
+    await requireAgentProjectAccess(c, agentId);
     const suggestions = await getWeightSuggestions(agentId);
     return c.json({ agent_id: agentId, suggestions });
   });
@@ -161,6 +192,7 @@ export function registerFeedbackRoutes(app: Hono): void {
     // Apply weights
   app.post('/api/agents/:id/apply-weights', async (c) => {
     const agentId = requireUUID(c.req.param('id'), 'agentId');
+    await requireAgentProjectAccess(c, agentId);
     const updates = await computeAndApplyWeightUpdates(agentId);
     logAudit('weights_applied', agentId, { updates_count: updates.length });
     return c.json({ agent_id: agentId, updates });
@@ -169,6 +201,7 @@ export function registerFeedbackRoutes(app: Hono): void {
     // Reset weights
   app.post('/api/agents/:id/reset-weights', async (c) => {
     const agentId = requireUUID(c.req.param('id'), 'agentId');
+    await requireAgentProjectAccess(c, agentId);
     const profile = await resetWeights(agentId);
     logAudit('weights_reset', agentId, {});
     return c.json({ agent_id: agentId, weights: profile.weights });
@@ -177,10 +210,24 @@ export function registerFeedbackRoutes(app: Hono): void {
     // Weight history
   app.get('/api/agents/:id/weight-history', async (c) => {
     const agentId = requireUUID(c.req.param('id'), 'agentId');
+    await requireAgentProjectAccess(c, agentId);
     const limit = Math.min(parseInt(c.req.query('limit') ?? '20', 10), 100);
     const history = await getWeightHistory(agentId, limit);
     return c.json(history);
   });
+}
+
+// Resolve project_id from agent_id and enforce tenant access.
+async function requireAgentProjectAccess(c: import('hono').Context, agentId: string): Promise<void> {
+  const db = getDb();
+  const res = await db.query<{ project_id: string }>(
+    'SELECT project_id FROM agents WHERE id = ?',
+    [agentId],
+  );
+  if (res.rows.length === 0) {
+    throw new NotFoundError('Agent', agentId);
+  }
+  await requireProjectAccess(c, res.rows[0].project_id);
 }
 
 // ---------------------------------------------------------------------------
@@ -189,17 +236,10 @@ export function registerFeedbackRoutes(app: Hono): void {
 
 async function checkAutoApply(agentId: string): Promise<void> {
   try {
+    const pendingCount = await getPendingFeedbackCount(agentId);
+    if (pendingCount < AUTO_APPLY_THRESHOLD) return;
+
     const db = getDb();
-
-    // Check if learning should trigger based on DB count
-    const countResult = await db.query<Record<string, unknown>>(
-      `SELECT COUNT(*) as cnt FROM relevance_feedback WHERE agent_id = ? AND created_at >= ${db.dialect === 'sqlite' ? "datetime('now', '-1 hour')" : "NOW() - INTERVAL '1 hour'"}`,
-      [agentId],
-    );
-    const recentCount = Number((countResult.rows[0] as any)?.cnt ?? 0);
-    if (recentCount <= 0 || recentCount % 10 !== 0) return;
-
-    // Check if project is in auto mode (default)
     const agentResult = await db.query<{ project_id: string }>(
       'SELECT project_id FROM agents WHERE id = ?',
       [agentId],
@@ -217,8 +257,7 @@ async function checkAutoApply(agentId: string): Promise<void> {
     if (typeof raw === 'string') try { metadata = JSON.parse(raw); } catch {}
     else if (raw && typeof raw === 'object') metadata = raw as Record<string, unknown>;
 
-    const mode = (metadata.learning_mode as string) ?? 'auto';
-    if (mode === 'auto') {
+    if ((metadata.learning_mode as string ?? 'auto') === 'auto') {
       await computeAndApplyWeightUpdates(agentId);
     }
   } catch (err) {

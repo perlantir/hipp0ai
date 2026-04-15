@@ -1,0 +1,182 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [main, fix/contextual-memory-correctness]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  api-e2e:
+    name: API scenarios (Docker stack)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build core + server
+        run: |
+          pnpm --filter @hipp0/core build
+          pnpm --filter @hipp0/server build
+
+      - name: Start docker stack
+        working-directory: e2e
+        run: docker compose up --build -d --wait
+
+      - name: Start fake LLM
+        run: npx tsx e2e/fake-llm-server.ts --port 4001 &
+        shell: bash
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3001/api/health > /dev/null; then
+              echo "ready"; exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f e2e/docker-compose.yml logs
+          exit 1
+
+      - name: Seed data
+        run: npx tsx e2e/seed.ts --base-url=http://localhost:3001 > /tmp/e2e-seed.json
+
+      - name: Run API scenarios
+        env:
+          HIPP0_BASE_URL: http://localhost:3001
+          HIPP0_SEED_FILE: /tmp/e2e-seed.json
+          OPENAI_BASE_URL: http://localhost:4001/v1
+        run: npx vitest run -c e2e/vitest.config.ts
+
+      - name: Dump logs on failure
+        if: failure()
+        working-directory: e2e
+        run: docker compose logs
+
+      - name: Teardown
+        if: always()
+        working-directory: e2e
+        run: docker compose down -v
+
+  dashboard-e2e:
+    name: Dashboard (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright deps
+        working-directory: e2e/dashboard
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright suite
+        env:
+          E2E_AUTO_START_DASHBOARD: '1'
+        working-directory: e2e/dashboard
+        run: npx playwright test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: e2e/dashboard/playwright-report/
+          retention-days: 7
+
+  hermulti-e2e:
+    name: Hermulti E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout hermulti
+        uses: actions/checkout@v4
+        with:
+          repository: perlantir/hermulti
+          path: hermulti
+          ref: fix/audit-phase-0-cleanup
+
+      - name: Checkout hipp0ai
+        uses: actions/checkout@v4
+        with:
+          path: hipp0ai
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: hipp0ai/pnpm-lock.yaml
+
+      - name: Install hipp0 deps
+        working-directory: hipp0ai
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm --filter @hipp0/core build
+          pnpm --filter @hipp0/server build
+
+      - name: Install hermulti deps
+        working-directory: hermulti
+        run: |
+          pip install -e .
+          pip install pytest pytest-timeout httpx
+
+      - name: Start hipp0 stack
+        working-directory: hipp0ai/e2e
+        run: docker compose up --build -d --wait
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3001/api/health > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          exit 1
+
+      - name: Seed data
+        working-directory: hipp0ai
+        run: npx tsx e2e/seed.ts --base-url=http://localhost:3001 > /tmp/e2e-seed.json
+
+      - name: Run hermulti agent E2E
+        working-directory: hermulti
+        env:
+          HIPP0_BASE_URL: http://localhost:3001
+          HIPP0_SEED_FILE: /tmp/e2e-seed.json
+        run: python3 -m pytest tests/e2e/ tests/integration/test_skill_dispatcher_e2e.py -v -o addopts="" --timeout=30
+
+      - name: Teardown
+        if: always()
+        working-directory: hipp0ai/e2e
+        run: docker compose down -v

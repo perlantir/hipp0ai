@@ -9,12 +9,14 @@ import { getDb } from '@hipp0/core/db/index.js';
 import { NotFoundError, ValidationError } from '@hipp0/core/types.js';
 import { requireUUID, optionalString } from './validation.js';
 import { safeEmit } from '../events/event-stream.js';
+import { requireProjectAccess } from './_helpers.js';
 
 export function registerPhase2ContradictionRoutes(app: Hono): void {
   // GET /api/projects/:id/intelligence/contradictions — list open contradictions
   app.get('/api/projects/:id/intelligence/contradictions', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const status = c.req.query('status') ?? 'open';
 
     const result = await db.query(
@@ -36,6 +38,7 @@ export function registerPhase2ContradictionRoutes(app: Hono): void {
   app.get('/api/projects/:id/intelligence/contradictions/:cid', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const cid = requireUUID(c.req.param('cid'), 'contradictionId');
 
     const result = await db.query(
@@ -57,6 +60,7 @@ export function registerPhase2ContradictionRoutes(app: Hono): void {
   app.post('/api/projects/:id/intelligence/contradictions/:cid/resolve', async (c) => {
     const db = getDb();
     const projectId = requireUUID(c.req.param('id'), 'projectId');
+    await requireProjectAccess(c, projectId);
     const cid = requireUUID(c.req.param('cid'), 'contradictionId');
 
     const body = await c.req.json<{

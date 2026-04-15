@@ -667,6 +667,10 @@ export async function generateWeeklyDigest(projectId: string): Promise<WeeklyDig
   // --- Top decisions (by compile count + success rate) -----------------------
   const topDecisions: TopDecisionRef[] = [];
   try {
+    // Success rate sourced from decision_outcome_stats (Phase 14, migration
+    // 062/sqlite-040) — the legacy decisions.outcome_success_rate column is
+    // being removed via migration 060. LEFT JOIN so decisions with no
+    // recorded outcomes still appear, defaulted to 0.
     const r = await db.query<Record<string, unknown>>(
       `SELECT
          d.id AS id,
@@ -674,8 +678,10 @@ export async function generateWeeklyDigest(projectId: string): Promise<WeeklyDig
          (SELECT COUNT(*) FROM compile_history ch
            WHERE ch.project_id = d.project_id
              AND ch.decision_ids LIKE '%' || d.id || '%') AS compile_count,
-         COALESCE(d.outcome_success_rate, 0) AS success_rate
+         COALESCE(v.success_rate, 0) AS success_rate
        FROM decisions d
+       LEFT JOIN decision_outcome_stats v
+         ON v.decision_id = d.id AND v.project_id = d.project_id
        WHERE d.project_id = ? AND d.status = 'active'
        ORDER BY compile_count DESC, success_rate DESC
        LIMIT 5`,

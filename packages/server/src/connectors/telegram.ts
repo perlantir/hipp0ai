@@ -9,6 +9,7 @@ import { submitForExtraction } from '../queue/index.js';
 import type { NotificationJobData } from '../queue/index.js';
 import { getDb } from '@hipp0/core/db/index.js';
 import { callLLM } from '@hipp0/core/distillery/index.js';
+import { redactBotToken } from '@hipp0/core/webhooks/index.js';
 
   // Decision pattern matching
 
@@ -66,7 +67,9 @@ export async function handleTelegramNotification(data: NotificationJobData): Pro
     }
     await bot.sendMessage(data.chat_id, text, opts);
   } catch (err) {
-    console.warn('[hipp0/telegram] Failed to send reply:', (err as Error).message);
+    // Redact any bot_token that may have leaked into the error message via
+    // the underlying HTTP library's URL-in-error quoting.
+    console.warn('[hipp0/telegram] Failed to send reply:', redactBotToken((err as Error).message));
   }
 }
 

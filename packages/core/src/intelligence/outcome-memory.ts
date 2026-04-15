@@ -5,8 +5,13 @@ import { parseDecisionOutcome } from '../db/parsers.js';
 // Outcome multiplier bounds: 0.85 (poor track record) to 1.10 (strong track record)
 const OUTCOME_FLOOR = 0.85;
 const OUTCOME_CEILING = 1.10;
-// Minimum outcomes before the multiplier has meaningful effect
-const MIN_OUTCOMES_FOR_EFFECT = 3;
+// Minimum outcomes before the multiplier has any effect. Set to 2 (from 1)
+// to give a single accidental reaction no permanent influence on scoring;
+// one data point can't establish a track record. Combined with the 90-day
+// window on decision_outcome_stats (migration 061/sqlite-039) this means
+// a decision needs at least two corroborating signals inside the window
+// before the multiplier moves off neutral.
+const MIN_OUTCOMES_FOR_EFFECT = 2;
 
 /**
  * Record a decision-level outcome.
@@ -27,6 +32,9 @@ export async function recordDecisionOutcome(params: {
   const id = (await import('node:crypto')).randomUUID();
   const score = Math.max(0, Math.min(1, params.outcome_score));
 
+  // SQLite cannot bind booleans — cast to 0/1 at the edge. Postgres accepts
+  // both but the integer form is safe across both dialects.
+  const reversalBind = (params.reversal ?? false) ? 1 : 0;
   await db.query(
     `INSERT INTO decision_outcomes
      (id, decision_id, project_id, agent_id, compile_history_id, task_session_id,
@@ -41,7 +49,7 @@ export async function recordDecisionOutcome(params: {
       params.task_session_id ?? null,
       params.outcome_type,
       score,
-      params.reversal ?? false,
+      reversalBind,
       params.reversal_reason ?? null,
       params.notes ?? null,
     ],
@@ -111,18 +119,74 @@ export async function getOutcomeStats(decisionId: string): Promise<OutcomeStats>
  * Recompute and persist cached outcome aggregates on the decision row.
  * Called after every new outcome is recorded.
  */
+/**
+ * Read per-decision outcome stats from the unified ``decision_outcome_stats``
+ * view (migration 058, Phase 14). Returns null when the view is absent
+ * (older SQLite databases — the view is Postgres-only) or when the decision
+ * has no matching rows in hermes_outcomes. Callers should combine this with
+ * the legacy decisions.outcome_success_rate column until the deprecation
+ * window closes and the column is dropped.
+ */
+export async function getUnifiedOutcomeStats(
+  decisionId: string,
+): Promise<{ success_rate: number; total_count: number } | null> {
+  const db = getDb();
+  try {
+    const result = await db.query<{ success_rate: string | number; total_count: string | number }>(
+      `SELECT success_rate, total_count FROM decision_outcome_stats WHERE decision_id = ?`,
+      [decisionId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+    const rate = typeof row.success_rate === 'string' ? parseFloat(row.success_rate) : row.success_rate;
+    const total = typeof row.total_count === 'string' ? parseInt(row.total_count, 10) : row.total_count;
+    if (!Number.isFinite(rate) || !Number.isFinite(total)) return null;
+    return { success_rate: rate, total_count: total };
+  } catch {
+    // View missing (pre-058 database) or any read failure → null tells the
+    // caller to fall back to the legacy column. Never throw to callers.
+    return null;
+  }
+}
+
 export async function recomputeOutcomeAggregates(decisionId: string): Promise<void> {
   const db = getDb();
-  const stats = await getOutcomeStats(decisionId);
-
-  await db.query(
-    `UPDATE decisions
-     SET outcome_success_rate = ?,
-         outcome_count = ?,
-         updated_at = ${db.dialect === 'sqlite' ? "datetime('now')" : 'NOW()'}
-     WHERE id = ?`,
-    [stats.success_rate, stats.total_outcomes, decisionId],
-  );
+  // Atomic read-and-write into the legacy columns, kept alive for the
+  // Phase-14 deprecation window. Once migration 060 drops
+  // decisions.outcome_success_rate / outcome_count, these columns won't
+  // exist and this UPDATE will fail. We detect that case (unknown-column
+  // error) and no-op, because decision_outcome_stats is the canonical
+  // source post-060 and no further writing is needed. Callers should
+  // treat this function as best-effort: it keeps the legacy column in
+  // sync during the monitoring window, nothing more.
+  const now = db.dialect === 'sqlite' ? "datetime('now')" : 'NOW()';
+  try {
+    await db.query(
+      `UPDATE decisions
+       SET
+         outcome_count = COALESCE((
+           SELECT COUNT(*) FROM decision_outcomes WHERE decision_id = ?
+         ), 0),
+         outcome_success_rate = COALESCE((
+           SELECT
+             CAST(SUM(CASE WHEN outcome_type = 'success' THEN 1 ELSE 0 END) AS ${db.dialect === 'sqlite' ? 'REAL' : 'FLOAT'})
+               / NULLIF(COUNT(*), 0)
+           FROM decision_outcomes WHERE decision_id = ?
+         ), 0),
+         updated_at = ${now}
+       WHERE id = ?`,
+      [decisionId, decisionId, decisionId],
+    );
+  } catch (err) {
+    const msg = (err as Error).message ?? '';
+    // Postgres: 'column "outcome_success_rate" of relation "decisions" does not exist'
+    // SQLite:   'no such column: outcome_success_rate'
+    if (/outcome_success_rate|outcome_count/.test(msg) && /(no such column|does not exist)/.test(msg)) {
+      // Post-060: the legacy columns are gone. Nothing to keep in sync.
+      return;
+    }
+    throw err;
+  }
 }
 
 /**
@@ -142,10 +206,13 @@ export function outcomeMultiplier(
     return 1.0; // neutral — not enough data
   }
 
-  // Dampening factor: ramp from 0 to 1 as outcomes increase
-  // At MIN_OUTCOMES_FOR_EFFECT (3): factor = 0.33
-  // At 10: factor = 0.7
-  // At 20+: factor ≈ 1.0
+  // Dampening factor: ramp from 0 to 1 as outcomes increase.
+  // At 2 outcomes (the MIN_OUTCOMES_FOR_EFFECT floor): factor = 0.10
+  // At 10:                                            factor = 0.50
+  // At 20+:                                           factor = 1.00
+  // The linear ramp over 20 outcomes lets the multiplier strengthen as
+  // evidence accumulates without a single burst of reactions pinning a
+  // decision to the envelope extremes.
   const dampening = Math.min(1.0, outcomeCount / 20);
 
   // Center the rate around 0.5 (neutral)
@@ -173,6 +240,18 @@ export async function attributeOutcomeToDecisions(params: {
   outcome_score: number;
   task_session_id?: string;
   notes?: string;
+  /**
+   * Optional: client-asserted list of decision ids the reaction refers to
+   * (from hermes_outcomes.snippet_ids_json). When provided, attribution is
+   * restricted to the INTERSECTION of this list and the decisions that
+   * were actually included in the compile_history brief. This prevents a
+   * reaction from rewarding/punishing decisions that weren't cited in
+   * the brief the user reacted to, and prevents a buggy/malicious client
+   * from stuffing arbitrary ids and skewing scoring. When omitted (legacy
+   * /api/outcomes path), all decisions in the compile_history are
+   * attributed as before.
+   */
+  snippet_ids?: string[];
 }): Promise<number> {
   const db = getDb();
 
@@ -193,6 +272,14 @@ export async function attributeOutcomeToDecisions(params: {
   }
 
   if (decisionIds.length === 0) return 0;
+
+  // Restrict to the intersection of compile_history.decision_ids and the
+  // caller's snippet_ids (when provided). See the param docstring above.
+  if (params.snippet_ids && params.snippet_ids.length > 0) {
+    const allow = new Set(params.snippet_ids);
+    decisionIds = decisionIds.filter((id) => allow.has(id));
+    if (decisionIds.length === 0) return 0;
+  }
 
   // Parse decision_scores to get per-decision relevance
   let decisionScores: Record<string, number> = {};

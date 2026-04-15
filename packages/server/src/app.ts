@@ -14,6 +14,7 @@ import {
   bodyLimit,
 } from './middleware/index.js';
 import { phase3AuthMiddleware, optionalAuth, freeTierOrAuth, isAuthRequired, requireRole } from './auth/middleware.js';
+import { costLimiter } from './middleware/cost-limiter.js';
 import { registerProjectRoutes } from './routes/projects.js';
 import { registerAgentRoutes } from './routes/agents.js';
 import { registerDecisionRoutes } from './routes/decisions.js';
@@ -72,6 +73,7 @@ import { registerProcedureRoutes } from './routes/procedures.js';
 import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerCollaborationRoutes } from './routes/collaboration.js';
 import { registerCostRoutes } from './routes/cost.js';
+import { registerEntityRoutes } from './routes/entities.js';
 
 import { tierEnforcement } from './middleware/tierEnforcement.js';
 import { getDb } from '@hipp0/core/db/index.js';
@@ -95,6 +97,12 @@ export function createApp() {
   // Unauthenticated: 60/min, Authenticated: 300/min (enforced in middleware)
   app.use('/api/*', rateLimiter({ maxRequests: 100 }));
   app.use('/api/compile', rateLimiter({ maxRequests: 30, windowMs: 60000, namespace: 'compile' }));
+  // Cost-budget gate on LLM-heavy routes. Opt-in via HIPP0_COST_LIMITER=true
+  // (off by default so local dev and tests don't need a budget set). Runs
+  // AFTER rateLimiter so budget checks happen only on requests that cleared
+  // the rate limit; project_id is set later by the tenant/auth pipeline.
+  app.use('/api/compile', costLimiter);
+  app.use('/api/*/distill*', costLimiter);
   app.use(
     '/api/*/distill*',
     rateLimiter({ maxRequests: 10, windowMs: 60000, namespace: 'distill' }),
@@ -336,6 +344,7 @@ export function createApp() {
   registerAnalyticsRoutes(app);
   registerCollaborationRoutes(app);
   registerCostRoutes(app);
+  registerEntityRoutes(app);
 
     // Billing + Stripe webhook
   registerBillingRoutes(app);

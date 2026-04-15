@@ -310,6 +310,15 @@ export interface ScoringBreakdown {
   trust_multiplier?: number;
   outcome_multiplier?: number;
   staleness_multiplier?: number;
+  /**
+   * Which source fed outcome_multiplier for this row:
+   *   'view'   — Phase 14 decision_outcome_stats view (preferred)
+   *   'column' — legacy decisions.outcome_success_rate column
+   *   'none'   — below MIN_OUTCOMES_FOR_EFFECT, multiplier = 1.0
+   * Surfaced so "why did this decision rank here?" can be answered from
+   * the audit trail without re-running the query.
+   */
+  outcome_source?: 'view' | 'column' | 'none';
 }
 
 // --- Edges ---
@@ -526,6 +535,36 @@ export interface ContextPackage {
   loading_layers?: { l0_count: number; l1_count: number; l2_available: number };
   wing_sources?: Record<string, number>;
   suggested_patterns: SuggestedPattern[];
+  /**
+   * Audit trail for decisions dropped during filter+pack. Capped at 200
+   * entries to bound response size. Reasons:
+   *   - "below_threshold": combined_score < MIN_SCORE (or request.min_score)
+   *   - "over_budget":     passed threshold but didn't fit MAX_RESULTS cap
+   *   - "duplicate":       title-normalised duplicate of a higher-scored sibling
+   */
+  filtered?: Array<{
+    decision_id: string;
+    reason: 'below_threshold' | 'over_budget' | 'duplicate';
+    score: number;
+  }>;
+  /** L0.5 lane: knowledge insights matched by tag overlap with the task. */
+  insights?: Array<{
+    id: string;
+    type: 'insight';
+    insight_type: string;
+    title: string;
+    description: string;
+  }>;
+  /** Entity context lane: entity pages relevant to agent tags and task keywords. */
+  entity_context?: Array<{
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    trust_score: number;
+  }>;
+  /** Multiplier applied to decisions in the inferred task domain based on agent skill score. */
+  skill_domain_multiplier?: number;
 }
 
 // --- Contradictions ---

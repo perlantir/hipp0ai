@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: hipp0
+      POSTGRES_PASSWORD: hipp0
+      POSTGRES_DB: hipp0_e2e
+    ports: ['5433:5432']
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U hipp0']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  hipp0-server:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile.server
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://hipp0:hipp0@postgres:5432/hipp0_e2e
+      HIPP0_DIALECT: postgres
+      PORT: '3000'
+      NODE_ENV: test
+      HIPP0_AUTH_REQUIRED: 'false'
+      HIPP0_EMBEDDING_PROVIDER: 'off'
+      HIPP0_ENRICHMENT_PROVIDER: 'off'
+      HIPP0_DISABLE_RATE_LIMIT: 'true'
+    ports: ['3001:3000']
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '--quiet', 'http://localhost:3000/api/health']
+      interval: 2s
+      timeout: 3s
+      retries: 30

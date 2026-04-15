@@ -251,9 +251,29 @@
       "import": "./dist/intelligence/digest-delivery.js",
       "types": "./dist/intelligence/digest-delivery.d.ts"
     },
-    "./intelligence/resilience.js": {
-      "import": "./dist/intelligence/resilience.js",
-      "types": "./dist/intelligence/resilience.d.ts"
+    "./intelligence/entity-enricher.js": {
+      "import": "./dist/intelligence/entity-enricher.js",
+      "types": "./dist/intelligence/entity-enricher.d.ts"
+    },
+    "./intelligence/pdf-ingest.js": {
+      "import": "./dist/intelligence/pdf-ingest.js",
+      "types": "./dist/intelligence/pdf-ingest.d.ts"
+    },
+    "./intelligence/embedding-provider.js": {
+      "import": "./dist/intelligence/embedding-provider.js",
+      "types": "./dist/intelligence/embedding-provider.d.ts"
+    },
+    "./intelligence/entity-enrichment-provider.js": {
+      "import": "./dist/intelligence/entity-enrichment-provider.js",
+      "types": "./dist/intelligence/entity-enrichment-provider.d.ts"
+    },
+    "./cron/enrich-entities.js": {
+      "import": "./dist/cron/enrich-entities.js",
+      "types": "./dist/cron/enrich-entities.d.ts"
+    },
+    "./intelligence/decision-embedder.js": {
+      "import": "./dist/intelligence/decision-embedder.js",
+      "types": "./dist/intelligence/decision-embedder.d.ts"
     },
     "./telemetry.js": {
       "import": "./dist/telemetry.js",
@@ -266,6 +286,14 @@
     "./db/adapter.js": {
       "import": "./dist/db/adapter.js",
       "types": "./dist/db/adapter.d.ts"
+    },
+    "./search/hybrid.js": {
+      "import": "./dist/search/hybrid.js",
+      "types": "./dist/search/hybrid.d.ts"
+    },
+    "./search/intent-classifier.js": {
+      "import": "./dist/search/intent-classifier.js",
+      "types": "./dist/search/intent-classifier.d.ts"
     }
   },
   "scripts": {
@@ -273,6 +301,8 @@
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "tsx bench/compile.bench.ts",
+    "bench:update": "tsx bench/compile.bench.ts --update-baseline",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -280,6 +310,7 @@
     "@opentelemetry/api": "^1.9.1",
     "better-sqlite3": "^12.8.0",
     "crypto-js": "^4.2.0",
+    "js-tiktoken": "^1.0.21",
     "nodemailer": "^8.0.5",
     "openai": "^4.73.0",
     "pg": "^8.13.0",

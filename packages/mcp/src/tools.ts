@@ -18,6 +18,7 @@ import type { EvolutionMode, EvolutionProposal as EvoProposal } from '@hipp0/cor
 
 export interface ToolConfig {
   projectId: string;
+  apiUrl?: string;
 }
 
 export function registerAllTools(
@@ -896,6 +897,54 @@ export function registerAllTools(
         return {
           content: [{ type: 'text' as const, text: `Error: ${(err as Error).message}` }],
         };
+      }
+    },
+  );
+
+    // Tool: hipp0_search
+
+  server.registerTool(
+    'hipp0_search',
+    {
+      title: 'Unified search',
+      description:
+        'Unified search across decisions and entity pages. Returns ranked results using hybrid RRF. Use this for broad queries instead of search_decisions.',
+      inputSchema: {
+        query: z.string().describe('Search query - can be a question, keyword, or entity name'),
+        limit: z.number().optional().describe('Max results (default 10, max 20)'),
+        kind: z.enum(['all', 'decisions', 'entities']).optional().describe(
+          'Filter by result type. all searches both decisions and entity pages.',
+        ),
+        project_id: z.string().optional().describe('Project ID (optional, uses default)'),
+      },
+    },
+    async (args) => {
+      try {
+        const baseUrl = (config.apiUrl ?? 'http://localhost:3100').replace(/\/$/, '');
+        const params = new URLSearchParams({
+          project_id: args.project_id ?? config.projectId,
+          q: args.query,
+          limit: String(Math.min(20, args.limit ?? 10)),
+          kind: args.kind ?? 'all',
+        });
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        const apiKey = (client as unknown as { apiKey?: string }).apiKey;
+        if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+        const res = await fetch(`${baseUrl}/api/search?${params}`, { headers });
+        if (!res.ok) {
+          return { content: [{ type: 'text' as const, text: `Search failed: HTTP ${res.status}` }] };
+        }
+        const data = (await res.json()) as { results?: Array<{ kind: string; title: string; content: string; rrf_score: number }> };
+        const results = data.results ?? [];
+        if (results.length === 0) {
+          return { content: [{ type: 'text' as const, text: `No results found for "${args.query}"` }] };
+        }
+        const formatted = results
+          .map((r, i) => `${i + 1}. [${r.kind.toUpperCase()}] ${r.title}\n   ${(r.content ?? '').slice(0, 200)}`)
+          .join('\n\n');
+        return { content: [{ type: 'text' as const, text: formatted }] };
+      } catch (err) {
+        return { content: [{ type: 'text' as const, text: `Search failed: ${(err as Error).message}` }] };
       }
     },
   );

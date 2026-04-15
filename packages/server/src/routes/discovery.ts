@@ -110,16 +110,6 @@ export function registerDiscoveryRoutes(app: Hono): void {
 
   // POST /api/ingest/webhook — Webhook receiver
   app.post('/api/ingest/webhook', async (c) => {
-    // Bearer token auth (independent of session auth)
-    const apiKey = getHipp0ApiKey();
-    if (apiKey) {
-      const authHeader = c.req.header('Authorization') ?? '';
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-      if (!safeEqual(token, apiKey)) {
-        return c.json({ error: 'Unauthorized' }, 401);
-      }
-    }
-
     const body = await c.req.json<{
       text?: unknown;
       content?: unknown;
@@ -134,6 +124,8 @@ export function registerDiscoveryRoutes(app: Hono): void {
     let sourceId: string;
     let projectId: string;
 
+    // Validate required body fields BEFORE auth so missing-field requests get 400
+    // (not 401) regardless of whether the caller supplied a Bearer token.
     try {
       const rawText = body.text ?? body.content ?? body.conversation;
       text = requireString(rawText, 'text', 200000);
@@ -141,6 +133,16 @@ export function registerDiscoveryRoutes(app: Hono): void {
       projectId = requireUUID(body.project_id, 'project_id');
     } catch (err) {
       return c.json({ error: 'Invalid discovery request' }, 400);
+    }
+
+    // Bearer token auth (independent of session auth)
+    const apiKey = getHipp0ApiKey();
+    if (apiKey) {
+      const authHeader = c.req.header('Authorization') ?? '';
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+      if (!safeEqual(token, apiKey)) {
+        return c.json({ error: 'Unauthorized' }, 401);
+      }
     }
 
     const agentName =

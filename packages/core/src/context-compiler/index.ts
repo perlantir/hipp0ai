@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
 import { getDb } from '../db/index.js';
 import { getPersona as _getPersonaImport } from '../config/agentPersonas.js';
 import type { AgentPersona } from '../config/agentPersonas.js';
@@ -28,9 +29,12 @@ import type {
 } from '../types.js';
 import { getPatternRecommendations, DEFAULT_MIN_PATTERN_CONFIDENCE } from '../intelligence/pattern-extractor.js';
 import { inferDomainFromTask } from '../hierarchy/classifier.js';
-import { trustMultiplier } from '../intelligence/trust-scorer.js';
+import { computeAgentSkillProfile } from '../intelligence/skill-profiler.js';
+import { computeTrust, trustMultiplier } from '../intelligence/trust-scorer.js';
 import { outcomeMultiplier } from '../intelligence/outcome-memory.js';
 import { computeWingSources } from '../wings/affinity.js';
+import { withCoreSpan } from '../telemetry.js';
+import { searchEntityPages } from '../intelligence/entity-enricher.js';
 
 // Embedding helper — imported from decision-graph (generated at runtime).
 // We use a dynamic import shape so the module can be provided at runtime.
@@ -41,6 +45,60 @@ let _generateEmbedding: ((text: string) => Promise<number[]>) | null = null;
 let _embeddingImportFailed = false;
 
 const ZERO_VECTOR: number[] = new Array(1536).fill(0) as number[];
+
+// In-process cache for task embeddings. Embeddings are deterministic
+// functions of the task description alone (agent/project do not affect
+// the vector), so repeat compiles for the same task text skip the
+// embeddings API round-trip entirely. Bounded LRU keyed by sha256 of
+// the task description; entries expire after TASK_EMBEDDING_TTL_MS.
+// Never caches zero-vector fallbacks so a transient API failure does
+// not poison future compiles.
+//
+// NOTE: Intentionally SEPARATE from the Redis `compile:` cache in
+// packages/server/src/cache/redis.ts. Compile-result entries are
+// project/agent/task-scoped and get evicted on any decision mutation
+// (see invalidateDecisionCaches). Task embeddings depend only on the
+// task description and must outlive compile-result evictions, otherwise
+// every decision write would force redundant embeddings API calls.
+const TASK_EMBEDDING_TTL_MS = 10 * 60_000;   // 10 minutes
+const TASK_EMBEDDING_MAX_ENTRIES = 500;
+const taskEmbeddingCache = new Map<string, { vec: number[]; expiresAt: number }>();
+
+function taskEmbeddingKey(task: string): string {
+  return crypto.createHash('sha256').update(task).digest('hex');
+}
+
+function readTaskEmbeddingCache(task: string): number[] | null {
+  const key = taskEmbeddingKey(task);
+  const entry = taskEmbeddingCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    taskEmbeddingCache.delete(key);
+    return null;
+  }
+  // LRU touch
+  taskEmbeddingCache.delete(key);
+  taskEmbeddingCache.set(key, entry);
+  return entry.vec;
+}
+
+function writeTaskEmbeddingCache(task: string, vec: number[]): void {
+  // Don't cache zero-vector fallbacks — they'd block real embeddings
+  // from being cached once the upstream API recovers.
+  let nonZero = false;
+  for (let i = 0; i < vec.length; i++) {
+    if (vec[i] !== 0) { nonZero = true; break; }
+  }
+  if (!nonZero) return;
+  const key = taskEmbeddingKey(task);
+  taskEmbeddingCache.set(key, { vec, expiresAt: Date.now() + TASK_EMBEDDING_TTL_MS });
+  // Evict oldest when over capacity (Map iteration is insertion order)
+  while (taskEmbeddingCache.size > TASK_EMBEDDING_MAX_ENTRIES) {
+    const oldest = taskEmbeddingCache.keys().next().value;
+    if (oldest === undefined) break;
+    taskEmbeddingCache.delete(oldest);
+  }
+}
 
 async function getEmbeddingFn(): Promise<(text: string) => Promise<number[]>> {
   if (_generateEmbedding) return _generateEmbedding;
@@ -162,6 +220,18 @@ function deduplicateDecisions(decisions: ScoredDecision[]): ScoredDecision[] {
   // Single Output Funnel
 // EVERY code path must go through this before returning decisions.
 
+// Cap on the audit trail array so the compile response doesn't bloat
+// on projects with 10k+ decisions. Keeps the top N drops (we record
+// filter-order which is score-DESC-ish, so earlier entries are the most
+// "interesting" near-misses).
+const FILTERED_TRAIL_LIMIT = 200;
+
+type FilteredDrop = {
+  decision_id: string;
+  reason: 'below_threshold' | 'over_budget' | 'duplicate';
+  score: number;
+};
+
 function finalizeResults(
   scored: ScoredDecision[],
   agentName: string,
@@ -169,16 +239,52 @@ function finalizeResults(
   startMs: number,
   minScore: number = MIN_SCORE,
   maxResults: number = MAX_RESULTS,
-): ScoredDecision[] {
+): { capped: ScoredDecision[]; filtered: FilteredDrop[] } {
   // Re-clamp all scores to [0, 1.0]
   for (const d of scored) {
     d.combined_score = Math.max(0, Math.min(1.0, d.combined_score));
   }
 
-  const filtered = scored.filter((d) => d.combined_score >= minScore);
-  const deduped = deduplicateDecisions(filtered);
-  const sorted = deduped.sort((a, b) => b.combined_score - a.combined_score);
+  const drops: FilteredDrop[] = [];
+  const pushDrop = (d: FilteredDrop) => {
+    if (drops.length < FILTERED_TRAIL_LIMIT) drops.push(d);
+  };
+
+  const filtered: ScoredDecision[] = [];
+  for (const d of scored) {
+    if (d.combined_score >= minScore) {
+      filtered.push(d);
+    } else {
+      pushDrop({ decision_id: d.id, reason: 'below_threshold', score: d.combined_score });
+    }
+  }
+  const dedupedSet = new Set(deduplicateDecisions(filtered).map((d) => d.id));
+  for (const d of filtered) {
+    if (!dedupedSet.has(d.id)) {
+      pushDrop({ decision_id: d.id, reason: 'duplicate', score: d.combined_score });
+    }
+  }
+  const deduped = filtered.filter((d) => dedupedSet.has(d.id));
+  // Stable sort by score DESC; break ties by updated_at DESC (fall back to
+  // created_at) so recent edits win packing slots when scores are equal.
+  const sorted = deduped.sort((a, b) => {
+    const scoreDiff = b.combined_score - a.combined_score;
+    if (scoreDiff !== 0) return scoreDiff;
+    const aTs = new Date(
+      (a as Decision & { updated_at?: string | Date | null }).updated_at ?? a.created_at,
+    ).getTime();
+    const bTs = new Date(
+      (b as Decision & { updated_at?: string | Date | null }).updated_at ?? b.created_at,
+    ).getTime();
+    return (Number.isFinite(bTs) ? bTs : 0) - (Number.isFinite(aTs) ? aTs : 0);
+  });
   const capped = sorted.slice(0, maxResults);
+  // Record decisions that passed the threshold + dedupe but didn't survive
+  // the MAX_RESULTS cap. These are the most informative drops for
+  // debugging "why didn't X show up".
+  for (const d of sorted.slice(maxResults)) {
+    pushDrop({ decision_id: d.id, reason: 'over_budget', score: d.combined_score });
+  }
 
   // Normalize: map top score to 0.95, scale others proportionally
   if (capped.length > 0) {
@@ -213,7 +319,7 @@ function finalizeResults(
     `[hipp0/compile] agent=${agentName} project=${(projectId ?? '').slice(0, 8)}.. scored=${scored.length} passed=${capped.length} top=${(capped[0]?.combined_score ?? 0).toFixed(3)} semantic=${scored.filter((d) => ((d.scoring_breakdown as unknown) as Record<string, unknown>)?.semantic_similarity as number > 0).length} ms=${ms}`,
   );
 
-  return capped;
+  return { capped, filtered: drops };
 }
 
   // Conversational Explanation Generator
@@ -291,12 +397,60 @@ function generateExplanation(
   return 'General project context.';
 }
 
+/**
+ * Load per-decision unified outcome stats for a whole project.
+ *
+ * Reads from the Phase 14 ``decision_outcome_stats`` view. The view is
+ * defined on both dialects: supabase/migrations/058+061 for Postgres,
+ * sqlite/039 for SQLite. Both apply a 90-day window and raw (non-Laplace)
+ * success rate so the legacy column and the view produce the same number
+ * for the same input.
+ *
+ * On any query error (view missing on a pre-058/039 database, bad rows,
+ * transient failure) returns an empty map and the caller falls back to
+ * the legacy decisions.outcome_success_rate column. Never propagates.
+ */
+async function loadUnifiedOutcomeStats(
+  projectId: string,
+): Promise<Map<string, { success_rate: number; total_count: number }>> {
+  const map = new Map<string, { success_rate: number; total_count: number }>();
+  const db = getDb();
+  try {
+    const result = await db.query<{
+      decision_id: string;
+      success_rate: string | number;
+      total_count: string | number;
+    }>(
+      `SELECT decision_id, success_rate, total_count
+       FROM decision_outcome_stats WHERE project_id = ?`,
+      [projectId],
+    );
+    for (const row of result.rows) {
+      const rate = typeof row.success_rate === 'string' ? parseFloat(row.success_rate) : row.success_rate;
+      const total = typeof row.total_count === 'string' ? parseInt(row.total_count, 10) : row.total_count;
+      if (!Number.isFinite(rate) || !Number.isFinite(total)) continue;
+      map.set(row.decision_id, { success_rate: rate, total_count: total });
+    }
+  } catch {
+    // View missing (pre-058) or any query failure → empty map; caller falls
+    // back to the legacy column on each decision. Never propagate.
+  }
+  return map;
+}
+
 export function scoreDecision(
   decision: Decision,
   agent: Agent,
   taskEmbedding: number[],
   domainContext?: { taskDomain?: DecisionDomain | null; agentDomain?: DecisionDomain | null },
   taskDescription?: string,
+  /**
+   * Set of decision ids whose outcome_success_rate/outcome_count were
+   * overridden from the Phase 14 decision_outcome_stats view upstream.
+   * Used for audit-trail attribution only — the numeric value is already
+   * in decision.outcome_success_rate by the time scoreDecision runs.
+   */
+  viewSourcedIds?: Set<string>,
 ): ScoredDecision {
   const profile = agent.relevance_profile;
   const agentNameLower = agent.name.toLowerCase();
@@ -452,15 +606,31 @@ export function scoreDecision(
   finalScore += domainBoost;
 
   // Trust multiplier: low-trust decisions penalized (0.70x), high-trust boosted (1.15x)
-  const trustMult = trustMultiplier(decision.trust_score);
+  // Recompute trust with the live contradiction count wired in from the batch fetch upstream.
+  const { trust_score: liveTrustScore } = computeTrust(decision, {
+    contradictionCount: (decision as Decision & { _contradiction_count?: number })._contradiction_count ?? 0,
+  });
+  const trustMult = trustMultiplier(liveTrustScore);
   finalScore *= trustMult;
 
-  // Outcome multiplier: decisions with strong track records get modest boost (0.85 to 1.10)
-  const outcomeMult = outcomeMultiplier(
-    (decision as Decision & { outcome_success_rate?: number | null }).outcome_success_rate,
-    (decision as Decision & { outcome_count?: number }).outcome_count,
-  );
+  // Outcome multiplier: decisions with strong track records get modest boost
+  // (0.85 to 1.10). The input values are sourced from a SINGLE authority —
+  // either decisions.outcome_success_rate (legacy) or Phase 14's
+  // decision_outcome_stats view override applied upstream. A previous
+  // implementation layered a second hermes_outcomes-derived multiplier on
+  // top of this one; that produced a hidden [0.72, 1.21] envelope because
+  // the same reaction fed both paths (view aggregates hermes_outcomes AND
+  // migration 059 backfilled them from decision_outcomes). Removed —
+  // one reaction, one multiplier.
+  const outcomeSuccessRate = (decision as Decision & { outcome_success_rate?: number | null }).outcome_success_rate;
+  const outcomeCount = (decision as Decision & { outcome_count?: number }).outcome_count;
+  const outcomeMult = outcomeMultiplier(outcomeSuccessRate, outcomeCount);
   finalScore *= outcomeMult;
+  // Audit-trail attribution: which source fed outcomeMultiplier.
+  let outcomeSource: 'view' | 'column' | 'none' = 'none';
+  if (outcomeCount != null && outcomeCount >= 2) {
+    outcomeSource = viewSourcedIds?.has(decision.id) ? 'view' : 'column';
+  }
 
   // Staleness multiplier: tier-aware gradual ramp (permanent tier NEVER stale)
   let stalenessMultiplier = 1.0;
@@ -521,6 +691,7 @@ export function scoreDecision(
     wing_affinity_boost: wingAffinityBoost,
     trust_multiplier: trustMult,
     outcome_multiplier: outcomeMult,
+    outcome_source: outcomeSource,
     explanation,
   } as ScoringBreakdown;
 
@@ -589,8 +760,39 @@ async function writeCache(
 
 // --- Token budget packing ---
 
-/** Rough token estimate: chars / 4 */
+// Lazy-init cl100k_base encoder. js-tiktoken is pure JS (no native build)
+// and caches its BPE ranks on first use. We wrap it in a memoized helper
+// and fall back to chars/4 on any failure so token counting is never a
+// hard dependency in the compile hot path.
+let _tiktokenEncoder: { encode: (s: string) => { length: number } } | null = null;
+let _tiktokenTried = false;
+function getTiktokenEncoder(): { encode: (s: string) => { length: number } } | null {
+  if (_tiktokenEncoder || _tiktokenTried) return _tiktokenEncoder;
+  _tiktokenTried = true;
+  try {
+    const req = createRequire(import.meta.url);
+    const mod = req('js-tiktoken') as {
+      getEncoding: (name: string) => { encode: (s: string) => number[] };
+    };
+    const enc = mod.getEncoding('cl100k_base');
+    _tiktokenEncoder = { encode: (s: string) => enc.encode(s) };
+  } catch {
+    _tiktokenEncoder = null;
+  }
+  return _tiktokenEncoder;
+}
+
+/** Token count via cl100k_base tiktoken, falling back to chars/4. */
 function estimateTokens(text: string): number {
+  if (!text) return 0;
+  const enc = getTiktokenEncoder();
+  if (enc) {
+    try {
+      return enc.encode(text).length;
+    } catch {
+      // fall through to the heuristic
+    }
+  }
   return Math.ceil(text.length / 4);
 }
 
@@ -630,7 +832,47 @@ async function expandGraphContext(
   const visited = new Set<string>(topDecisions.map((d) => d.id));
   const expansions: ExpandedDecision[] = [];
 
-  // BFS queue: [decisionId, parentScore, depth]
+  if (topDecisions.length === 0 || maxDepth < 1) return expansions;
+
+  // N+1 fix: pre-fetch ALL decision_edges rows touching any seed id in ONE
+  // query, then walk the BFS using in-memory adjacency maps. The previous
+  // impl ran one SELECT per node per BFS level, which was O(seeds * depth)
+  // round-trips — catastrophic over a slow link with 25+ seeds.
+  //
+  // The adjacency map only needs to cover edges whose endpoints land inside
+  // allDecisionMap (expansions filter unknown neighbors anyway), so the
+  // seed-id fetch is sufficient: any neighbor we'd reach at depth d via
+  // a chain of edges must itself appear as the source_id or target_id of
+  // an edge whose OTHER endpoint is a seed — but we need multi-hop. To
+  // support maxDepth > 1 with a single query, fetch all edges for the
+  // entire candidate decision set (allDecisionMap keys), which is already
+  // bounded by the layered fetch above (typically < a few hundred rows).
+  const candidateIds = [...allDecisionMap.keys()];
+  if (candidateIds.length === 0) return expansions;
+
+  const placeholders = candidateIds.map(() => '?').join(', ');
+  const edgeResult = await db.query<Record<string, unknown>>(
+    `SELECT source_id, target_id
+       FROM decision_edges
+      WHERE source_id IN (${placeholders}) OR target_id IN (${placeholders})`,
+    [...candidateIds, ...candidateIds],
+  );
+
+  // Build bidirectional adjacency: id -> Set of neighbor ids
+  const adjacency = new Map<string, Set<string>>();
+  for (const row of edgeResult.rows) {
+    const src = row['source_id'] as string;
+    const tgt = row['target_id'] as string;
+    if (!src || !tgt) continue;
+    let srcSet = adjacency.get(src);
+    if (!srcSet) { srcSet = new Set(); adjacency.set(src, srcSet); }
+    srcSet.add(tgt);
+    let tgtSet = adjacency.get(tgt);
+    if (!tgtSet) { tgtSet = new Set(); adjacency.set(tgt, tgtSet); }
+    tgtSet.add(src);
+  }
+
+  // BFS using the in-memory map
   const queue: Array<{ id: string; parentScore: number; depth: number }> = topDecisions.map(
     (d) => ({ id: d.id, parentScore: d.combined_score, depth: 1 }),
   );
@@ -641,16 +883,10 @@ async function expandGraphContext(
     const { id, parentScore, depth } = item;
     if (depth > maxDepth) continue;
 
-    const edgeResult = await db.query<Record<string, unknown>>(
-      `SELECT DISTINCT
-         CASE WHEN source_id = ? THEN target_id ELSE source_id END AS neighbor_id
-       FROM decision_edges
-      WHERE source_id = ? OR target_id = ?`,
-      [id, id, id],
-    );
+    const neighbors = adjacency.get(id);
+    if (!neighbors) continue;
 
-    for (const row of edgeResult.rows) {
-      const neighborId = row['neighbor_id'] as string;
+    for (const neighborId of neighbors) {
       if (visited.has(neighborId)) continue;
       visited.add(neighborId);
 
@@ -789,6 +1025,46 @@ async function writeAuditLog(
      VALUES (?, ?, ?, ?, ?)`,
     [crypto.randomUUID(), 'context_compiled', agentId, projectId, JSON.stringify(details)],
   );
+}
+
+// --- L0.5: Knowledge insights helper ---
+
+async function fetchInsightsForTask(
+  projectId: string,
+  taskDomain: string | null,
+  taskTags: string[],
+): Promise<Array<{ id: string; insight_type: string; title: string; description: string; tags: string[] }>> {
+  const db = getDb();
+  const result = await db.query<Record<string, unknown>>(
+    `SELECT id, insight_type, title, description, tags FROM knowledge_insights
+     WHERE project_id = ? AND status = 'active'
+     ORDER BY created_at DESC LIMIT 20`,
+    [projectId],
+  );
+
+  const taskTagSet = new Set(taskTags.map((t) => t.toLowerCase()));
+  const scored = result.rows.map((row) => {
+    const tags: string[] = Array.isArray(row.tags)
+      ? (row.tags as string[])
+      : typeof row.tags === 'string'
+        ? (() => { try { return JSON.parse(row.tags as string); } catch { return []; } })()
+        : [];
+    const overlap = tags.filter((t) => taskTagSet.has(t.toLowerCase())).length;
+    const domainMatch = taskDomain && tags.some((t) => t.toLowerCase() === taskDomain.toLowerCase()) ? 1 : 0;
+    return { row, score: overlap + domainMatch, tags };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((s) => ({
+      id: s.row.id as string,
+      insight_type: s.row.insight_type as string,
+      title: s.row.title as string,
+      description: s.row.description as string,
+      tags: s.tags,
+    }));
 }
 
 /**
@@ -930,16 +1206,52 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   const allDecisionMap = new Map<string, Decision>(allDecisions.map((d) => [d.id, d]));
 
-  const generateEmbedding = await getEmbeddingFn();
+  // Batch-fetch active contradiction counts for all candidate decisions
+  const allCandidateIds = allDecisions.map((d) => d.id);
+  const contradictionCounts = new Map<string, number>();
+  if (allCandidateIds.length > 0) {
+    try {
+      const placeholders = allCandidateIds.map(() => '?').join(',');
+      const contrResult = await db.query<Record<string, unknown>>(
+        `SELECT decision_a_id as did, COUNT(*) as cnt
+         FROM contradictions
+         WHERE decision_a_id IN (${placeholders}) AND status = 'active'
+         GROUP BY decision_a_id
+         UNION ALL
+         SELECT decision_b_id as did, COUNT(*) as cnt
+         FROM contradictions
+         WHERE decision_b_id IN (${placeholders}) AND status = 'active'
+         GROUP BY decision_b_id`,
+        [...allCandidateIds, ...allCandidateIds],
+      );
+      for (const row of contrResult.rows) {
+        const did = row.did as string;
+        contradictionCounts.set(did, (contradictionCounts.get(did) ?? 0) + Number(row.cnt ?? 0));
+      }
+    } catch {
+      // Non-fatal: contradiction penalty simply won't apply
+    }
+  }
+
+  // Task embedding — check in-process LRU before calling out to the
+  // embeddings API. Embeddings depend only on task_description, so the
+  // cache is safely shared across agents and projects.
   let taskEmbedding: number[];
-  try {
-    taskEmbedding = await generateEmbedding(task_description);
-  } catch (err) {
-    // Graceful degradation: if embedding generation fails (API down, rate limit,
-    // network error), continue scoring without semantic similarity rather than
-    // crashing the entire compile request.
-    console.warn(`[hipp0/compile] Embedding generation failed for agent=${agent_name} — falling back to non-semantic scoring:`, (err as Error).message);
-    taskEmbedding = [...ZERO_VECTOR];
+  const cachedEmbedding = readTaskEmbeddingCache(task_description);
+  if (cachedEmbedding) {
+    taskEmbedding = cachedEmbedding;
+  } else {
+    const generateEmbedding = await getEmbeddingFn();
+    try {
+      taskEmbedding = await generateEmbedding(task_description);
+      writeTaskEmbeddingCache(task_description, taskEmbedding);
+    } catch (err) {
+      // Graceful degradation: if embedding generation fails (API down, rate limit,
+      // network error), continue scoring without semantic similarity rather than
+      // crashing the entire compile request.
+      console.warn(`[hipp0/compile] Embedding generation failed for agent=${agent_name} — falling back to non-semantic scoring:`, (err as Error).message);
+      taskEmbedding = [...ZERO_VECTOR];
+    }
   }
 
   // Infer domain from task for domain-aware scoring boost
@@ -949,8 +1261,95 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   const agentDomain = persona ? inferDomainFromTask(persona.primaryTags.join(' ')) : null;
   const domainContext = { taskDomain, agentDomain };
 
-  const scored = allDecisions.map((d) => {
-    const sd = scoreDecision(d, agent, taskEmbedding, domainContext, task_description);
+  // Look up agent's skill score for the inferred task domain
+  let skillDomainMultiplier = 1.0;
+  if (taskDomain && agent_name) {
+    try {
+      const skillProfile = await computeAgentSkillProfile(project_id, agent_name);
+      const domainSkill = skillProfile.skills.find(
+        (s) => s.domain === taskDomain && s.measured,
+      );
+      if (domainSkill) {
+        if (domainSkill.skill_score >= 0.7) skillDomainMultiplier = 1.10;
+        else if (domainSkill.skill_score >= 0.5) skillDomainMultiplier = 1.05;
+        else if (domainSkill.skill_score < 0.3) skillDomainMultiplier = 0.92;
+      }
+    } catch {
+      // Non-fatal: skill multiplier stays at 1.0
+    }
+  }
+
+  // L0.5: knowledge insights - policies, anti-patterns, procedures, domain rules
+  const insights = await fetchInsightsForTask(
+    project_id,
+    taskDomain ?? null,
+    task_description.toLowerCase().split(/\s+/).filter((w) => w.length > 3),
+  );
+
+  // Entity context lane: find entity pages relevant to agent tags and task keywords
+  const entityContext: Array<{ id: string; type: string; title: string; summary: string; trust_score: number }> = [];
+  try {
+    const taskKeywords = task_description
+      .split(/\s+/)
+      .filter((w) => w.length > 4 && /^[A-Z]/.test(w))
+      .slice(0, 5);
+    const agentTags = persona?.primaryTags?.slice(0, 3) ?? [];
+    const searchTerms = [...new Set([...taskKeywords, ...agentTags])].slice(0, 5);
+
+    for (const term of searchTerms) {
+      const pages = await searchEntityPages(project_id, term, undefined, 3);
+      for (const page of pages) {
+        if (page.compiled_truth && !entityContext.find((e) => e.id === page.id)) {
+          entityContext.push({
+            id: page.id,
+            type: page.type,
+            title: page.title,
+            summary: page.compiled_truth.slice(0, 400),
+            trust_score: page.trust_score,
+          });
+        }
+      }
+    }
+
+    // Sort by trust, limit to 5
+    entityContext.sort((a, b) => b.trust_score - a.trust_score);
+    entityContext.splice(5);
+  } catch {
+    // Non-fatal
+  }
+
+  // Phase 14: prefer the unified view for outcome stats when available.
+  // When the view has data for a decision, we override the decision's
+  // in-memory outcome_success_rate / outcome_count with the view values
+  // BEFORE scoring, so scoreDecision reads a single canonical source.
+  // When the view is empty for a decision, we leave the legacy column
+  // values in place (the migration-window fallback). Once migration 060
+  // drops the column, this override becomes the only path.
+  const unifiedStats = await withCoreSpan(
+    'compile.load_unified_outcomes',
+    { project_id },
+    async () => loadUnifiedOutcomeStats(project_id),
+  );
+  const viewSourcedIds = new Set<string>();
+  if (unifiedStats.size > 0) {
+    for (const d of allDecisions) {
+      const u = unifiedStats.get(d.id);
+      if (!u) continue;
+      (d as Decision & { outcome_success_rate?: number; outcome_count?: number }).outcome_success_rate = u.success_rate;
+      (d as Decision & { outcome_success_rate?: number; outcome_count?: number }).outcome_count = u.total_count;
+      viewSourcedIds.add(d.id);
+    }
+  }
+
+  const scored = await withCoreSpan(
+    'compile.score_decisions',
+    { project_id, agent_name },
+    async () => allDecisions.map((d) => {
+    const decisionWithContrCount = {
+      ...d,
+      _contradiction_count: contradictionCounts.get(d.id) ?? 0,
+    };
+    const sd = scoreDecision(decisionWithContrCount, agent, taskEmbedding, domainContext, task_description, viewSourcedIds);
     // Tag loading layer
     if (l0Ids.has(d.id)) {
       sd.loading_layer = 'L0';
@@ -960,7 +1359,8 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
       sd.loading_layer = 'L1';
     }
     return sd;
-  });
+  }),
+  );
 
     // Wing-aware affinity boost
   // Orchestrator agents (role "orchestrator") see all wings equally — no bias.
@@ -984,6 +1384,15 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     }
   }
 
+  // Apply skill domain boost/penalty to decisions matching taskDomain
+  if (skillDomainMultiplier !== 1.0) {
+    for (const sd of scored) {
+      if (sd.domain === taskDomain) {
+        sd.combined_score = Math.min(1.0, sd.combined_score * skillDomainMultiplier);
+      }
+    }
+  }
+
   const depth = agent.relevance_profile.decision_depth;
 
   // L0 decisions always pass regardless of score
@@ -1003,7 +1412,11 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   const topN = Math.max(25, depth * 5);
   const topDecisions = qualifiedDecisions.slice(0, topN);
 
-  const expanded = await expandGraphContext(topDecisions, depth, allDecisionMap);
+  const expanded = await withCoreSpan(
+    'compile.expand_graph',
+    { project_id, agent_name },
+    async () => expandGraphContext(topDecisions, depth, allDecisionMap),
+  );
 
   const scoredIds = new Set(scored.map((d) => d.id));
   const expandedScored: ScoredDecision[] = expanded
@@ -1021,8 +1434,35 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   const allScored = [...scored, ...expandedScored];
 
+  // Freshness normalization pass: multiply each decision's score by an
+  // updated_at-based half-life multiplier before packing. The weighted
+  // `freshness` signal inside scoreDecision uses created_at; this extra
+  // pass captures *recent activity* (updated_at) so stale-but-unchanged
+  // decisions drop out of the budget ahead of equally-scored fresh ones.
+  const FRESHNESS_HALF_LIFE_DAYS = 30;
+  const FRESHNESS_LN2 = Math.LN2;
+  for (const d of allScored) {
+    if (!FRESHNESS_ENABLED) break;
+    const updatedRaw = (d as Decision & { updated_at?: string | Date | null }).updated_at
+      ?? d.created_at;
+    const updatedAt = updatedRaw ? new Date(updatedRaw as string).getTime() : NaN;
+    if (!Number.isFinite(updatedAt)) continue;
+    const ageDays = Math.max(0, (Date.now() - updatedAt) / 86400000);
+    const mult = Math.exp(-(FRESHNESS_LN2 * ageDays) / FRESHNESS_HALF_LIFE_DAYS);
+    d.combined_score = d.combined_score * mult;
+    const bd = d.scoring_breakdown as unknown as Record<string, unknown>;
+    if (bd && typeof bd === 'object') {
+      bd.freshness_normalization = mult;
+      bd.combined = d.combined_score;
+    }
+  }
+
+  // Cap artifact fetch at 100 most-recent rows — scoring is an O(N*M) loop
+  // against decisionScoreMap, and the packer only keeps items that fit the
+  // artifact token budget. Loading every artifact for long-lived projects
+  // wasted memory + CPU on rows that would never be included.
   const artifactResult = await db.query<Record<string, unknown>>(
-    `SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC`,
+    `SELECT * FROM artifacts WHERE project_id = ? ORDER BY created_at DESC LIMIT 100`,
     [project_id],
   );
   const allArtifacts = artifactResult.rows.map(parseArtifact);
@@ -1077,17 +1517,12 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
 
   // SINGLE OUTPUT FUNNEL: filter + dedupe + sort + cap
   // Every code path goes through finalizeResults — no exceptions.
-  // Log embedding / semantic health for this compile
-  const semanticHits = allScored.filter((d) => ((d.scoring_breakdown as unknown) as Record<string, unknown>)?.semantic_similarity as number > 0).length;
-  if (allScored.length > 0) {
-    // One-time debug: log embedding types for first decision
-    const first = allScored[0];
-    const rawType = typeof first.embedding;
-    const isArr = Array.isArray(first.embedding);
-    const embLen = isArr ? (first.embedding as number[]).length : (typeof first.embedding === 'string' ? (first.embedding as string).length : 0);
-    console.warn(`[hipp0/embeddings] first_decision_embedding: type=${rawType} isArray=${isArr} len=${embLen} semanticHits=${semanticHits}/${allScored.length}`);
-  }
-  const packedDecisions = finalizeResults(allScored, agent_name, project_id, startMs);
+  const { capped: packedDecisions, filtered: filteredDrops } = finalizeResults(
+    allScored,
+    agent_name,
+    project_id,
+    startMs,
+  );
 
   // Update last_referenced_at + reference_count for included decisions
   if (packedDecisions.length > 0) {
@@ -1114,7 +1549,10 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     artifactBudget,
   );
 
+  const insightTokens = insights.reduce((sum, ins) => sum + Math.ceil(ins.description.length / 4), 0);
+
   const usedSoFar =
+    insightTokens +
     packedNotifications.reduce(
       (s, n) => s + estimateTokens(n.message + (n.role_context ?? '')),
       0,
@@ -1223,6 +1661,16 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     },
     wing_sources: computeWingSources(packedDecisions, agent_name),
     suggested_patterns: suggestedPatterns,
+    filtered: filteredDrops,
+    insights: insights.map((ins) => ({
+      id: ins.id,
+      type: 'insight' as const,
+      insight_type: ins.insight_type,
+      title: ins.title,
+      description: ins.description,
+    })),
+    entity_context: entityContext,
+    skill_domain_multiplier: skillDomainMultiplier,
   };
 
   const includedDecisionIds = packedDecisions.map((d) => d.id);

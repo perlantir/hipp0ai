@@ -19,6 +19,7 @@ build/
 
 # Production data — never commit
 data/
+!packages/dashboard/src/data/
 e2e-test.sh
 *.env
 .env.*

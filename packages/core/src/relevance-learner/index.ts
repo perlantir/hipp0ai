@@ -407,6 +407,28 @@ export async function getWeightHistory(
 }
 
 /**
+ * Count feedback entries since the last weight update for this agent.
+ * Used by the auto-apply trigger to decide when to evolve weights.
+ */
+export async function getPendingFeedbackCount(agentId: string): Promise<number> {
+  const db = getDb();
+  // Find when weights were last applied
+  const lastApplyResult = await db.query<Record<string, unknown>>(
+    `SELECT MAX(recorded_at) as last_apply FROM weight_history WHERE agent_id = ?`,
+    [agentId],
+  );
+  const lastApply = (lastApplyResult.rows[0] as any)?.last_apply as string | null;
+
+  const countResult = await db.query<Record<string, unknown>>(
+    lastApply
+      ? `SELECT COUNT(*) as cnt FROM relevance_feedback WHERE agent_id = ? AND created_at > ?`
+      : `SELECT COUNT(*) as cnt FROM relevance_feedback WHERE agent_id = ?`,
+    lastApply ? [agentId, lastApply] : [agentId],
+  );
+  return Number((countResult.rows[0] as any)?.cnt ?? 0);
+}
+
+/**
  * Evolve weights — backward-compatible wrapper.
  */
 export async function evolveWeights(agentId: string): Promise<RelevanceProfile> {

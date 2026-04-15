@@ -88,11 +88,22 @@ async function fetchDecisions(ids: string[]): Promise<Decision[]> {
   if (ids.length === 0) return [];
   const db = getDb();
   const placeholders = ids.map(() => '?').join(',');
+  // outcome_success_rate/outcome_count come from decision_outcome_stats
+  // (Phase 14, migration 062/sqlite-040) rather than the legacy columns
+  // on decisions — those are being dropped by migration 060. Aliased to
+  // the historical names so checkPoorOutcomes() below continues to read
+  // them unchanged. LEFT JOIN so decisions with no outcome history are
+  // still returned (with NULL/0 values).
   const result = await db.query<Record<string, unknown>>(
-    `SELECT id, title, status, confidence, trust_score, outcome_success_rate, outcome_count,
-            supersedes_id, superseded_by, temporal_scope, valid_until, validated_at,
-            assumptions, open_questions, made_by, tags, created_at, provenance_chain
-     FROM decisions WHERE id IN (${placeholders})`,
+    `SELECT d.id, d.title, d.status, d.confidence, d.trust_score,
+            v.success_rate AS outcome_success_rate,
+            COALESCE(v.total_count, 0) AS outcome_count,
+            d.supersedes_id, d.superseded_by, d.temporal_scope, d.valid_until, d.validated_at,
+            d.assumptions, d.open_questions, d.made_by, d.tags, d.created_at, d.provenance_chain
+     FROM decisions d
+     LEFT JOIN decision_outcome_stats v
+       ON v.decision_id = d.id AND v.project_id = d.project_id
+     WHERE d.id IN (${placeholders})`,
     ids,
   );
   return result.rows.map((r) => r as unknown as Decision);

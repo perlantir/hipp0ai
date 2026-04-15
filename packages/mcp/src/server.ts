@@ -27,7 +27,7 @@ export function createHipp0Server(config: Hipp0ServerConfig): McpServer {
     },
   );
 
-  registerAllTools(server, client, { projectId: config.projectId });
+  registerAllTools(server, client, { projectId: config.projectId, apiUrl: config.apiUrl });
 
   return server;
 }
