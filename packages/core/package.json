@@ -255,6 +255,10 @@
       "import": "./dist/intelligence/entity-enricher.js",
       "types": "./dist/intelligence/entity-enricher.d.ts"
     },
+    "./intelligence/pdf-ingest.js": {
+      "import": "./dist/intelligence/pdf-ingest.js",
+      "types": "./dist/intelligence/pdf-ingest.d.ts"
+    },
     "./telemetry.js": {
       "import": "./dist/telemetry.js",
       "types": "./dist/telemetry.d.ts"

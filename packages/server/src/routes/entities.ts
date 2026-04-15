@@ -46,4 +46,18 @@ export function registerEntityRoutes(app: Hono): void {
     });
     return c.json(result, result.action === 'created' ? 201 : 200);
   });
+
+  // POST /api/ingest/pdf - accept plain text content, return extracted entity mentions
+  app.post('/api/ingest/pdf', async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+    const project_id = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, project_id);
+    const text = body.text as string | undefined;
+    if (!text || typeof text !== 'string') {
+      return c.json({ error: { code: 'BAD_REQUEST', message: 'text is required' } }, 400);
+    }
+    const { extractEntityMentions } = await import('@hipp0/core/intelligence/pdf-ingest.js');
+    const entities = extractEntityMentions(text);
+    return c.json({ text_length: text.length, entity_count: entities.length, entities });
+  });
 }
