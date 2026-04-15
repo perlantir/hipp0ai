@@ -555,6 +555,8 @@ export interface ContextPackage {
     title: string;
     description: string;
   }>;
+  /** Multiplier applied to decisions in the inferred task domain based on agent skill score. */
+  skill_domain_multiplier?: number;
 }
 
 // --- Contradictions ---

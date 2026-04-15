@@ -29,6 +29,7 @@ import type {
 } from '../types.js';
 import { getPatternRecommendations, DEFAULT_MIN_PATTERN_CONFIDENCE } from '../intelligence/pattern-extractor.js';
 import { inferDomainFromTask } from '../hierarchy/classifier.js';
+import { computeAgentSkillProfile } from '../intelligence/skill-profiler.js';
 import { computeTrust, trustMultiplier } from '../intelligence/trust-scorer.js';
 import { outcomeMultiplier } from '../intelligence/outcome-memory.js';
 import { computeWingSources } from '../wings/affinity.js';
@@ -1259,6 +1260,24 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   const agentDomain = persona ? inferDomainFromTask(persona.primaryTags.join(' ')) : null;
   const domainContext = { taskDomain, agentDomain };
 
+  // Look up agent's skill score for the inferred task domain
+  let skillDomainMultiplier = 1.0;
+  if (taskDomain && agent_name) {
+    try {
+      const skillProfile = await computeAgentSkillProfile(project_id, agent_name);
+      const domainSkill = skillProfile.skills.find(
+        (s) => s.domain === taskDomain && s.measured,
+      );
+      if (domainSkill) {
+        if (domainSkill.skill_score >= 0.7) skillDomainMultiplier = 1.10;
+        else if (domainSkill.skill_score >= 0.5) skillDomainMultiplier = 1.05;
+        else if (domainSkill.skill_score < 0.3) skillDomainMultiplier = 0.92;
+      }
+    } catch {
+      // Non-fatal: skill multiplier stays at 1.0
+    }
+  }
+
   // L0.5: knowledge insights - policies, anti-patterns, procedures, domain rules
   const insights = await fetchInsightsForTask(
     project_id,
@@ -1328,6 +1347,15 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
           sd.combined_score = Math.min(1.0, sd.combined_score + affinityWeight * 0.08);
         }
         // Other wings: standard scoring (no boost or penalty)
+      }
+    }
+  }
+
+  // Apply skill domain boost/penalty to decisions matching taskDomain
+  if (skillDomainMultiplier !== 1.0) {
+    for (const sd of scored) {
+      if (sd.domain === taskDomain) {
+        sd.combined_score = Math.min(1.0, sd.combined_score * skillDomainMultiplier);
       }
     }
   }
@@ -1608,6 +1636,7 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
       title: ins.title,
       description: ins.description,
     })),
+    skill_domain_multiplier: skillDomainMultiplier,
   };
 
   const includedDecisionIds = packedDecisions.map((d) => d.id);
