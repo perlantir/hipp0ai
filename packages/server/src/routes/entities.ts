@@ -62,6 +62,30 @@ export function registerEntityRoutes(app: Hono): void {
     return c.json({ results: filtered, query: q, intent: results[0]?.intent ?? 'general' });
   });
 
+  // POST /api/entities/enrich - run enrichment job for the project
+  // Body: { project_id, max_entities?: number, min_tier?: 1|2|3, stale_days?: number }
+  app.post('/api/entities/enrich', async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+    const project_id = requireUUID(body.project_id, 'project_id');
+    await requireProjectAccess(c, project_id);
+
+    const maxEntities = Math.min(20, Math.max(1, Number(body.max_entities ?? 5)));
+    const minTier = Number(body.min_tier ?? 2);
+    const staleDays = Math.max(1, Number(body.stale_days ?? 7));
+    if (![1, 2, 3].includes(minTier)) {
+      return c.json({ error: { code: 'BAD_REQUEST', message: 'min_tier must be 1, 2, or 3' } }, 400);
+    }
+
+    const { enrichStaleEntities } = await import('@hipp0/core/cron/enrich-entities.js');
+    const result = await enrichStaleEntities(project_id, {
+      maxEntities,
+      minTier: minTier as 1 | 2 | 3,
+      staleDays,
+    });
+
+    return c.json(result);
+  });
+
   // POST /api/ingest/pdf - accept plain text content, return extracted entity mentions
   app.post('/api/ingest/pdf', async (c) => {
     const body = await c.req.json<Record<string, unknown>>();
