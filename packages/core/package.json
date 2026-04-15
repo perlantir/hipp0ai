@@ -259,6 +259,10 @@
       "import": "./dist/intelligence/pdf-ingest.js",
       "types": "./dist/intelligence/pdf-ingest.d.ts"
     },
+    "./intelligence/embedding-provider.js": {
+      "import": "./dist/intelligence/embedding-provider.js",
+      "types": "./dist/intelligence/embedding-provider.d.ts"
+    },
     "./telemetry.js": {
       "import": "./dist/telemetry.js",
       "types": "./dist/telemetry.d.ts"
