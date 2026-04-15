@@ -27,7 +27,7 @@ async function runSessionWithOutcome(
       project_id: projectId,
       agent_name: agentName,
       soul: '# Soul\nE2E scenario hermes agent.',
-      config: { platform_access: ['web'] },
+      config: { model: 'gpt-4o-mini', platform_access: ['web'] },
     }),
   });
 

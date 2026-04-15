@@ -56,11 +56,15 @@ CREATE TABLE IF NOT EXISTS audit_log_v2 (
 );
 
 -- Add tenant_id to existing tables
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE decisions ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE contradictions ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE decision_edges ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE phase2_contradictions ADD COLUMN IF NOT EXISTS tenant_id UUID;
 ALTER TABLE phase2_decision_edges ADD COLUMN IF NOT EXISTS tenant_id UUID;
+-- api_keys may pre-exist from 002_audit_log.sql without tenant_id; ensure the
+-- column exists before we build the idx_api_keys_tenant index below.
+ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS tenant_id UUID;
 
 -- Default tenant for existing data
 INSERT INTO tenants (id, name, slug, plan)

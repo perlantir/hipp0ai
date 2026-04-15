@@ -306,6 +306,14 @@ export function rateLimiter(opts: RateLimiterConfig = {}): MiddlewareHandler {
   const ns = opts.namespace ?? 'global';
 
   return createMiddleware(async (c, next) => {
+    // Test/CI bypass: HIPP0_DISABLE_RATE_LIMIT=true turns the limiter into a
+    // pass-through. Only intended for e2e harnesses; production deployments
+    // should never set this.
+    if (process.env.HIPP0_DISABLE_RATE_LIMIT === 'true') {
+      await next();
+      return;
+    }
+
     // Rate limiting is always active regardless of NODE_ENV
     const ip = getClientIp(c);
 

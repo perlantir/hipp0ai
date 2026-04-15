@@ -27,6 +27,7 @@ services:
       HIPP0_AUTH_REQUIRED: 'false'
       HIPP0_EMBEDDING_PROVIDER: 'off'
       HIPP0_ENRICHMENT_PROVIDER: 'off'
+      HIPP0_DISABLE_RATE_LIMIT: 'true'
     ports: ['3001:3000']
     healthcheck:
       test: ['CMD', 'wget', '--spider', '--quiet', 'http://localhost:3000/api/health']
