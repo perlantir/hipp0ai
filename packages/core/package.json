@@ -263,6 +263,14 @@
       "import": "./dist/intelligence/embedding-provider.js",
       "types": "./dist/intelligence/embedding-provider.d.ts"
     },
+    "./intelligence/entity-enrichment-provider.js": {
+      "import": "./dist/intelligence/entity-enrichment-provider.js",
+      "types": "./dist/intelligence/entity-enrichment-provider.d.ts"
+    },
+    "./cron/enrich-entities.js": {
+      "import": "./dist/cron/enrich-entities.js",
+      "types": "./dist/cron/enrich-entities.d.ts"
+    },
     "./intelligence/decision-embedder.js": {
       "import": "./dist/intelligence/decision-embedder.js",
       "types": "./dist/intelligence/decision-embedder.d.ts"
