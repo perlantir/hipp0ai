@@ -241,10 +241,11 @@ describe('POST /api/ingest/webhook', () => {
     vi.unstubAllEnvs();
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv('HIPP0_AUTH_REQUIRED', 'false');
+    vi.stubEnv('HIPP0_API_KEY', '');
   });
 
   it('validates required fields (text, project_id) - returns 400 when missing', async () => {
-    // No HIPP0_API_KEY set → auth check skipped, goes straight to validation
+    // HIPP0_API_KEY stubbed empty -> Bearer auth skipped, validation runs first
     const resMissingText = await request(app, 'POST', '/api/ingest/webhook', {
       source_id: 'some-source',
       project_id: PROJECT_ID,
