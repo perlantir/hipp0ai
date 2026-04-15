@@ -1021,6 +1021,46 @@ async function writeAuditLog(
   );
 }
 
+// --- L0.5: Knowledge insights helper ---
+
+async function fetchInsightsForTask(
+  projectId: string,
+  taskDomain: string | null,
+  taskTags: string[],
+): Promise<Array<{ id: string; insight_type: string; title: string; description: string; tags: string[] }>> {
+  const db = getDb();
+  const result = await db.query<Record<string, unknown>>(
+    `SELECT id, insight_type, title, description, tags FROM knowledge_insights
+     WHERE project_id = ? AND status = 'active'
+     ORDER BY created_at DESC LIMIT 20`,
+    [projectId],
+  );
+
+  const taskTagSet = new Set(taskTags.map((t) => t.toLowerCase()));
+  const scored = result.rows.map((row) => {
+    const tags: string[] = Array.isArray(row.tags)
+      ? (row.tags as string[])
+      : typeof row.tags === 'string'
+        ? (() => { try { return JSON.parse(row.tags as string); } catch { return []; } })()
+        : [];
+    const overlap = tags.filter((t) => taskTagSet.has(t.toLowerCase())).length;
+    const domainMatch = taskDomain && tags.some((t) => t.toLowerCase() === taskDomain.toLowerCase()) ? 1 : 0;
+    return { row, score: overlap + domainMatch, tags };
+  });
+
+  return scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((s) => ({
+      id: s.row.id as string,
+      insight_type: s.row.insight_type as string,
+      title: s.row.title as string,
+      description: s.row.description as string,
+      tags: s.tags,
+    }));
+}
+
 /**
  * Compile a rich context package for an agent performing a specific task.
  * Implements the full 5-signal scoring pipeline with graph expansion,
@@ -1187,6 +1227,13 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
   // Infer agent's primary domain from persona primaryTags
   const agentDomain = persona ? inferDomainFromTask(persona.primaryTags.join(' ')) : null;
   const domainContext = { taskDomain, agentDomain };
+
+  // L0.5: knowledge insights - policies, anti-patterns, procedures, domain rules
+  const insights = await fetchInsightsForTask(
+    project_id,
+    taskDomain ?? null,
+    task_description.toLowerCase().split(/\s+/).filter((w) => w.length > 3),
+  );
 
   // Phase 14: prefer the unified view for outcome stats when available.
   // When the view has data for a decision, we override the decision's
@@ -1406,7 +1453,10 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     artifactBudget,
   );
 
+  const insightTokens = insights.reduce((sum, ins) => sum + Math.ceil(ins.description.length / 4), 0);
+
   const usedSoFar =
+    insightTokens +
     packedNotifications.reduce(
       (s, n) => s + estimateTokens(n.message + (n.role_context ?? '')),
       0,
@@ -1516,6 +1566,13 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     wing_sources: computeWingSources(packedDecisions, agent_name),
     suggested_patterns: suggestedPatterns,
     filtered: filteredDrops,
+    insights: insights.map((ins) => ({
+      id: ins.id,
+      type: 'insight' as const,
+      insight_type: ins.insight_type,
+      title: ins.title,
+      description: ins.description,
+    })),
   };
 
   const includedDecisionIds = packedDecisions.map((d) => d.id);

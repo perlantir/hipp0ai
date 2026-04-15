@@ -547,6 +547,14 @@ export interface ContextPackage {
     reason: 'below_threshold' | 'over_budget' | 'duplicate';
     score: number;
   }>;
+  /** L0.5 lane: knowledge insights matched by tag overlap with the task. */
+  insights?: Array<{
+    id: string;
+    type: 'insight';
+    insight_type: string;
+    title: string;
+    description: string;
+  }>;
 }
 
 // --- Contradictions ---
