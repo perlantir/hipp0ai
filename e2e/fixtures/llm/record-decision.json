@@ -1,0 +1,15 @@
+{
+  "match": "we decided to",
+  "response": {
+    "id": "fake-record-decision",
+    "choices": [{
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\"actions\": [{\"type\": \"record_decision\", \"args\": {\"title\": \"Use Redis for cache\", \"rationale\": \"Redis chosen for pub/sub and TTL support\", \"tags\": [\"cache\", \"redis\"], \"confidence\": \"high\"}}]}"
+      },
+      "finish_reason": "stop"
+    }],
+    "usage": { "prompt_tokens": 150, "completion_tokens": 50, "total_tokens": 200 }
+  }
+}
