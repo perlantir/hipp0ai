@@ -10,6 +10,8 @@ import {
   getWeightSuggestions,
   resetWeights,
   getWeightHistory,
+  getPendingFeedbackCount,
+  AUTO_APPLY_THRESHOLD,
 } from '@hipp0/core/relevance-learner/index.js';
 import { processWingFeedback, processWingFeedbackBatch } from '@hipp0/core';
 import { requireUUID, requireString, optionalString, mapDbError, logAudit } from './validation.js';
@@ -234,17 +236,10 @@ async function requireAgentProjectAccess(c: import('hono').Context, agentId: str
 
 async function checkAutoApply(agentId: string): Promise<void> {
   try {
+    const pendingCount = await getPendingFeedbackCount(agentId);
+    if (pendingCount < AUTO_APPLY_THRESHOLD) return;
+
     const db = getDb();
-
-    // Check if learning should trigger based on DB count
-    const countResult = await db.query<Record<string, unknown>>(
-      `SELECT COUNT(*) as cnt FROM relevance_feedback WHERE agent_id = ? AND created_at >= ${db.dialect === 'sqlite' ? "datetime('now', '-1 hour')" : "NOW() - INTERVAL '1 hour'"}`,
-      [agentId],
-    );
-    const recentCount = Number((countResult.rows[0] as any)?.cnt ?? 0);
-    if (recentCount <= 0 || recentCount % 10 !== 0) return;
-
-    // Check if project is in auto mode (default)
     const agentResult = await db.query<{ project_id: string }>(
       'SELECT project_id FROM agents WHERE id = ?',
       [agentId],
@@ -262,8 +257,7 @@ async function checkAutoApply(agentId: string): Promise<void> {
     if (typeof raw === 'string') try { metadata = JSON.parse(raw); } catch {}
     else if (raw && typeof raw === 'object') metadata = raw as Record<string, unknown>;
 
-    const mode = (metadata.learning_mode as string) ?? 'auto';
-    if (mode === 'auto') {
+    if ((metadata.learning_mode as string ?? 'auto') === 'auto') {
       await computeAndApplyWeightUpdates(agentId);
     }
   } catch (err) {
