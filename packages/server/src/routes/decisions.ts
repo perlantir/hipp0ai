@@ -31,6 +31,7 @@ import { notifySupersededDecision } from '../connectors/github.js';
 import { classifyDecision as autoClassify } from '@hipp0/core/hierarchy/classifier.js';
 import { classifyDecisionWing, maybeRecalculateWings, defaultProvenance, computeTrust, validationProvenance } from '@hipp0/core';
 import { predictDecisionImpact } from '@hipp0/core/intelligence/impact-predictor.js';
+import { embedDecisionFireAndForget } from '@hipp0/core/intelligence/decision-embedder.js';
 import { requireProjectAccess } from './_helpers.js';
 
 export function registerDecisionRoutes(app: Hono): void {
@@ -68,6 +69,11 @@ export function registerDecisionRoutes(app: Hono): void {
           );
           const created = parseDecision(result.rows[0] as Record<string, unknown>) as unknown as Record<string, unknown>;
           results.push(created);
+          embedDecisionFireAndForget(
+            created.id as string,
+            created.title as string,
+            (created.description as string | null) ?? (created.reasoning as string | null) ?? null,
+          );
           safeEmit('decision.created', projectId, {
             decision_id: created.id,
             title: created.title,
@@ -210,6 +216,12 @@ export function registerDecisionRoutes(app: Hono): void {
       );
 
       const decision = parseDecision(result.rows[0] as Record<string, unknown>);
+
+      embedDecisionFireAndForget(
+        decision.id,
+        decision.title,
+        decision.description ?? decision.reasoning ?? null,
+      );
 
       // Auto-classify against wing profiles (5-signal scoring)
       const wingClassification = classifyDecisionWing(
@@ -504,6 +516,15 @@ export function registerDecisionRoutes(app: Hono): void {
 
     const decision = parseDecision(result.rows[0] as Record<string, unknown>);
 
+    // Re-embed only when embedded content actually changed.
+    if (body.title !== undefined || body.description !== undefined || body.reasoning !== undefined) {
+      embedDecisionFireAndForget(
+        decision.id,
+        decision.title,
+        decision.description ?? decision.reasoning ?? null,
+      );
+    }
+
     logAudit('decision_updated', decision.project_id, {
       decision_id: decision.id,
       fields_updated: Object.keys(body),
@@ -608,6 +629,12 @@ export function registerDecisionRoutes(app: Hono): void {
         oldDecision: parseDecision({ ...old, status: 'superseded' }),
       };
     });
+
+    embedDecisionFireAndForget(
+      (result.newDecision as Decision).id,
+      (result.newDecision as Decision).title,
+      (result.newDecision as Decision).description ?? (result.newDecision as Decision).reasoning ?? null,
+    );
 
     logAudit('decision_superseded', (result.newDecision as Decision).project_id, {
       old_decision_id: oldId,
