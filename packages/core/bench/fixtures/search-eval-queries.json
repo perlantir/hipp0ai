@@ -1,0 +1,32 @@
+{
+  "decision_queries": [
+    {
+      "query": "why did we choose PostgreSQL",
+      "expected_tags": ["database", "postgresql"],
+      "min_score": 0.6
+    },
+    {
+      "query": "authentication approach decision",
+      "expected_tags": ["auth", "security"],
+      "min_score": 0.5
+    },
+    {
+      "query": "what was decided about caching",
+      "expected_tags": ["cache", "redis"],
+      "min_score": 0.5
+    }
+  ],
+  "entity_queries": [
+    {
+      "query": "Anthropic",
+      "expected_kind": "entity",
+      "min_results": 0
+    }
+  ],
+  "general_queries": [
+    {
+      "query": "infrastructure setup",
+      "min_results": 0
+    }
+  ]
+}
