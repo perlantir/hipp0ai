@@ -601,15 +601,63 @@ export function registerHermesRoutes(app: Hono): void {
       [ended_at, session_id],
     );
 
-    // Optional outcome bundled with session/end — future work will wire the
-    // relevance-learner pipeline. For Phase 0 we simply log it.
+    // Optional outcome bundled with session/end — wire through the full
+    // attribution pipeline (same path as /api/hermes/outcomes).
     const outcome = body.outcome as Record<string, unknown> | undefined;
     if (outcome) {
+      const rating = outcome.rating as string | undefined;
+      const snippet_ids: string[] = Array.isArray(outcome.snippet_ids)
+        ? (outcome.snippet_ids as unknown[]).filter((x): x is string => typeof x === 'string')
+        : [];
+      const signal_source = (outcome.signal_source as string | undefined) ?? 'session_end';
+
+      // Normalise to the same 3-value scale used by /api/hermes/outcomes
+      const outcomeLabel = rating === 'positive' ? 'positive'
+        : rating === 'negative' ? 'negative'
+        : 'neutral';
+
+      try {
+        // Find the agent for this session
+        const agentRes = await db.query<Record<string, unknown>>(
+          `SELECT hc.agent_id FROM hermes_conversations hc WHERE hc.session_id = ?`,
+          [session_id],
+        );
+        const agent_id = agentRes.rows[0]?.agent_id as string | undefined;
+
+        if (agent_id && outcomeLabel !== 'neutral') {
+          const chResult = await db.query<Record<string, unknown>>(
+            `SELECT id FROM compile_history
+             WHERE project_id = ? AND agent_id = ? AND compiled_at <= ?
+             ORDER BY compiled_at DESC LIMIT 1`,
+            [project_id, agent_id, ended_at],
+          );
+          const compile_history_id = chResult.rows[0]?.id as string | undefined;
+
+          if (compile_history_id) {
+            const outcome_type = outcomeLabel === 'positive' ? 'success' : 'failure';
+            const outcome_score = outcomeLabel === 'positive' ? 0.9 : 0.1;
+            await attributeOutcomeToDecisions({
+              compile_history_id,
+              project_id,
+              agent_id,
+              outcome_type,
+              outcome_score,
+              notes: `session_end signal: ${signal_source}`,
+              snippet_ids,
+            });
+            // Invalidate caches so next compile reflects the updated scores
+            invalidateDecisionCaches(project_id).catch(() => {});
+          }
+        }
+      } catch (err) {
+        console.warn('[hipp0:session-end] Outcome attribution failed:', (err as Error).message);
+      }
+
       logAudit('hermes_session_outcome', project_id, {
         session_id,
-        rating: outcome.rating,
-        signal_source: outcome.signal_source,
-        snippet_count: Array.isArray(outcome.snippet_ids) ? outcome.snippet_ids.length : 0,
+        rating: outcomeLabel,
+        signal_source,
+        snippet_count: snippet_ids.length,
       });
     }
 
