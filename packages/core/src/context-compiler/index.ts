@@ -34,6 +34,7 @@ import { computeTrust, trustMultiplier } from '../intelligence/trust-scorer.js';
 import { outcomeMultiplier } from '../intelligence/outcome-memory.js';
 import { computeWingSources } from '../wings/affinity.js';
 import { withCoreSpan } from '../telemetry.js';
+import { searchEntityPages } from '../intelligence/entity-enricher.js';
 
 // Embedding helper — imported from decision-graph (generated at runtime).
 // We use a dynamic import shape so the module can be provided at runtime.
@@ -1285,6 +1286,38 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
     task_description.toLowerCase().split(/\s+/).filter((w) => w.length > 3),
   );
 
+  // Entity context lane: find entity pages relevant to agent tags and task keywords
+  const entityContext: Array<{ id: string; type: string; title: string; summary: string; trust_score: number }> = [];
+  try {
+    const taskKeywords = task_description
+      .split(/\s+/)
+      .filter((w) => w.length > 4 && /^[A-Z]/.test(w))
+      .slice(0, 5);
+    const agentTags = persona?.primaryTags?.slice(0, 3) ?? [];
+    const searchTerms = [...new Set([...taskKeywords, ...agentTags])].slice(0, 5);
+
+    for (const term of searchTerms) {
+      const pages = await searchEntityPages(project_id, term, undefined, 3);
+      for (const page of pages) {
+        if (page.compiled_truth && !entityContext.find((e) => e.id === page.id)) {
+          entityContext.push({
+            id: page.id,
+            type: page.type,
+            title: page.title,
+            summary: page.compiled_truth.slice(0, 400),
+            trust_score: page.trust_score,
+          });
+        }
+      }
+    }
+
+    // Sort by trust, limit to 5
+    entityContext.sort((a, b) => b.trust_score - a.trust_score);
+    entityContext.splice(5);
+  } catch {
+    // Non-fatal
+  }
+
   // Phase 14: prefer the unified view for outcome stats when available.
   // When the view has data for a decision, we override the decision's
   // in-memory outcome_success_rate / outcome_count with the view values
@@ -1636,6 +1669,7 @@ export async function compileContext(request: CompileRequest): Promise<ContextPa
       title: ins.title,
       description: ins.description,
     })),
+    entity_context: entityContext,
     skill_domain_multiplier: skillDomainMultiplier,
   };
 

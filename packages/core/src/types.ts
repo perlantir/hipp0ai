@@ -555,6 +555,14 @@ export interface ContextPackage {
     title: string;
     description: string;
   }>;
+  /** Entity context lane: entity pages relevant to agent tags and task keywords. */
+  entity_context?: Array<{
+    id: string;
+    type: string;
+    title: string;
+    summary: string;
+    trust_score: number;
+  }>;
   /** Multiplier applied to decisions in the inferred task domain based on agent skill score. */
   skill_domain_multiplier?: number;
 }
