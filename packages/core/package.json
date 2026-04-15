@@ -270,6 +270,14 @@
     "./db/adapter.js": {
       "import": "./dist/db/adapter.js",
       "types": "./dist/db/adapter.d.ts"
+    },
+    "./search/hybrid.js": {
+      "import": "./dist/search/hybrid.js",
+      "types": "./dist/search/hybrid.d.ts"
+    },
+    "./search/intent-classifier.js": {
+      "import": "./dist/search/intent-classifier.js",
+      "types": "./dist/search/intent-classifier.d.ts"
     }
   },
   "scripts": {

@@ -7,6 +7,7 @@ import {
   searchEntityPages,
   type EntityType,
 } from '@hipp0/core/intelligence/entity-enricher.js';
+import { hybridSearch } from '@hipp0/core/search/hybrid.js';
 
 export function registerEntityRoutes(app: Hono): void {
   // GET /api/entities?project_id=&q=&type=&limit=
@@ -45,6 +46,20 @@ export function registerEntityRoutes(app: Hono): void {
       compiledTruth: typeof body.compiled_truth === 'string' ? body.compiled_truth : undefined,
     });
     return c.json(result, result.action === 'created' ? 201 : 200);
+  });
+
+  // GET /api/search?project_id=&q=&limit=&kind=
+  app.get('/api/search', async (c) => {
+    const project_id = requireUUID(c.req.query('project_id'), 'project_id');
+    await requireProjectAccess(c, project_id);
+    const q = c.req.query('q') ?? '';
+    const limit = Math.min(20, Number(c.req.query('limit') ?? '10'));
+    const kind = c.req.query('kind') ?? 'all';
+
+    const results = await hybridSearch(project_id, q, limit);
+    const filtered = kind === 'all' ? results : results.filter((r) => r.kind === kind);
+
+    return c.json({ results: filtered, query: q, intent: results[0]?.intent ?? 'general' });
   });
 
   // POST /api/ingest/pdf - accept plain text content, return extracted entity mentions
