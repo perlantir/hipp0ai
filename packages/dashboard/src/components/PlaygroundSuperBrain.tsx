@@ -7,7 +7,13 @@
  * Flow: Hero → Task Input → Team Plan → Step Simulation → Completion
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { findScenario, type DemoScenario, type DemoStep } from '../data/demo-scenarios';
+import {
+  findScenario,
+  type DemoScenario,
+  type DemoStep,
+  type DemoTopDecision,
+  type DemoSkippedAgent,
+} from '../data/demo-scenarios';
 
 // -- Constants --------------------------------------------------------------
 
@@ -108,7 +114,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
 
     if (speed === 'skip') {
       const prog: Record<number, 'done'> = {};
-      scenario.plan.forEach(s => { prog[s.step_number] = 'done'; });
+      scenario.plan.forEach((s: DemoStep) => { prog[s.step_number] = 'done'; });
       setStepProgress(prog);
       setCurrentStep(scenario.plan.length);
       setTimeout(() => setPhase('complete'), 300);
@@ -195,7 +201,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
           padding: '10px 14px',
           marginBottom: step.new_from_previous ? 10 : showOutput ? 10 : 0,
         }}>
-          {step.top_decisions.map((d, i) => (
+          {step.top_decisions.map((d: DemoTopDecision, i: number) => (
             <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', fontSize: 13 }}>
               <span style={{ color: 'var(--text-secondary)' }}>• {d.title}</span>
               <span style={{ fontFamily: 'monospace', color: '#6b7280', marginLeft: 12, whiteSpace: 'nowrap' }}>{d.score.toFixed(2)}</span>
@@ -309,8 +315,8 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
 
   if (phase === 'planning' && scenario) {
     const allAgents = [
-      ...scenario.plan.map(s => ({ ...s, skipped: false })),
-      ...scenario.skipped.map((s, i) => ({
+      ...scenario.plan.map((s: DemoStep) => ({ ...s, skipped: false })),
+      ...scenario.skipped.map((s: DemoSkippedAgent, i: number) => ({
         step_number: scenario.plan.length + i + 1,
         agent_name: s.agent_name,
         relevance_score: s.relevance_score,
@@ -450,7 +456,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
           }}>
             {paused ? '▶ Resume' : '⏸ Pause'}
           </button>
-          <button onClick={() => { setSpeed('skip'); clearTimers(); const prog: Record<number, 'done'> = {}; scenario.plan.forEach(s => { prog[s.step_number] = 'done'; }); setStepProgress(prog); setCurrentStep(scenario.plan.length); setTimeout(() => setPhase('complete'), 300); }} style={{
+          <button onClick={() => { setSpeed('skip'); clearTimers(); const prog: Record<number, 'done'> = {}; scenario.plan.forEach((s: DemoStep) => { prog[s.step_number] = 'done'; }); setStepProgress(prog); setCurrentStep(scenario.plan.length); setTimeout(() => setPhase('complete'), 300); }} style={{
             padding: '5px 14px', fontSize: 12, borderRadius: 6, border: 'none', cursor: 'pointer',
             backgroundColor: SURFACE, color: 'var(--text-tertiary)',
           }}>
@@ -459,7 +465,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
         </div>
 
         {/* Steps */}
-        {scenario.plan.map(step => renderStepCard(step))}
+        {scenario.plan.map((step: DemoStep) => renderStepCard(step))}
       </div>
     );
   }
@@ -477,7 +483,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
             Task Complete
           </div>
           <div style={{ color: 'var(--text-tertiary)', fontSize: 15 }}>
-            {scenario.plan.length} agents coordinated • {scenario.plan.reduce((s, st) => s + st.decisions_compiled, 0)} decisions compiled • 0 conflicts
+            {scenario.plan.length} agents coordinated • {scenario.plan.reduce((s: number, st: DemoStep) => s + st.decisions_compiled, 0)} decisions compiled • 0 conflicts
           </div>
         </div>
 
@@ -486,7 +492,7 @@ export function PlaygroundSuperBrain({ onClassicMode }: { onClassicMode?: () => 
           <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16, fontSize: 14, letterSpacing: '0.3px' }}>
             Context Efficiency
           </div>
-          {scenario.plan.map((step, i) => (
+          {scenario.plan.map((step: DemoStep, i: number) => (
             <div key={i} style={{ marginBottom: i < scenario.plan.length - 1 ? 16 : 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
                 <span style={{ color: 'var(--text-primary)', fontWeight: 500, fontSize: 14 }}>{step.agent_name}</span>
