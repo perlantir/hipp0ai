@@ -26,6 +26,7 @@ import crypto from 'node:crypto';
 import type { Hono } from 'hono';
 import { getDb } from '@hipp0/core/db/index.js';
 import { attributeOutcomeToDecisions } from '@hipp0/core/intelligence/outcome-memory.js';
+import { propagateOutcomeToEntities } from '@hipp0/core/intelligence/entity-enricher.js';
 import { requireUUID, requireString, optionalString, logAudit, mapDbError } from './validation.js';
 import { requireProjectAccess } from './_helpers.js';
 import { broadcast } from '../websocket.js';
@@ -1112,6 +1113,27 @@ export function registerHermesRoutes(app: Hono): void {
             // could stuff arbitrary ids and skew scoring project-wide.
             snippet_ids,
           });
+          // Propagate outcome signal to entities linked to attributed decisions
+          try {
+            const decisionIdsRes = await db.query<Record<string, unknown>>(
+              'SELECT decision_ids FROM compile_history WHERE id = ?',
+              [compile_history_id],
+            );
+            const decisionIds: string[] = (() => {
+              const raw = decisionIdsRes.rows[0]?.decision_ids;
+              if (typeof raw === 'string') {
+                try { return JSON.parse(raw); } catch { return []; }
+              }
+              return Array.isArray(raw) ? raw as string[] : [];
+            })();
+            const entityOutcome =
+              outcome === 'positive' ? 'positive' : outcome === 'negative' ? 'negative' : 'partial';
+            for (const did of decisionIds.slice(0, 10)) {
+              propagateOutcomeToEntities(project_id, did, entityOutcome, 'hermes_outcome').catch(() => {});
+            }
+          } catch {
+            // Non-fatal: entity propagation must not block the outcome response
+          }
         }
       }
     } catch (err) {

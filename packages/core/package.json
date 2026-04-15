@@ -251,6 +251,10 @@
       "import": "./dist/intelligence/digest-delivery.js",
       "types": "./dist/intelligence/digest-delivery.d.ts"
     },
+    "./intelligence/entity-enricher.js": {
+      "import": "./dist/intelligence/entity-enricher.js",
+      "types": "./dist/intelligence/entity-enricher.d.ts"
+    },
     "./telemetry.js": {
       "import": "./dist/telemetry.js",
       "types": "./dist/telemetry.d.ts"

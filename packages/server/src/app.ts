@@ -73,6 +73,7 @@ import { registerProcedureRoutes } from './routes/procedures.js';
 import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { registerCollaborationRoutes } from './routes/collaboration.js';
 import { registerCostRoutes } from './routes/cost.js';
+import { registerEntityRoutes } from './routes/entities.js';
 
 import { tierEnforcement } from './middleware/tierEnforcement.js';
 import { getDb } from '@hipp0/core/db/index.js';
@@ -343,6 +344,7 @@ export function createApp() {
   registerAnalyticsRoutes(app);
   registerCollaborationRoutes(app);
   registerCostRoutes(app);
+  registerEntityRoutes(app);
 
     // Billing + Stripe webhook
   registerBillingRoutes(app);
